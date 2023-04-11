@@ -1,21 +1,35 @@
 //! The `ping` command allows to send ICMP ECHO_REQUEST to network hosts.
 
+mod ping;
+
+use ping::PingContext;
 use std::env;
-use std::net::IpAddr;
-use std::net::Ipv4Addr;
+use std::num::NonZeroUsize;
 
 /// Structure storing arguments.
 struct Args {
 	// TODO
 
-	/// The destination address.
-	dest: IpAddr,
+	/// The number of packets to send.
+	///
+	/// If `None`, there is no limit.
+	count: Option<NonZeroUsize>,
+	/// The size of packets to be sent.
+	packet_size: usize,
+
+	/// The destination address or hostname.
+	dest: String,
 }
 
 impl Default for Args {
 	fn default() -> Self {
 		Self {
-			dest: IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
+			// TODO
+
+			count: None,
+			packet_size: 56,
+
+			dest: String::new(),
 		}
 	}
 }
@@ -39,7 +53,13 @@ fn parse_args() -> Args {
 }
 
 fn main() {
-	let _args = parse_args();
+	let args = parse_args();
 
-    // TODO
+	let mut ctx = PingContext {
+		count: args.count,
+		packet_size: args.packet_size,
+
+		dest: args.dest,
+	};
+    ctx.ping();
 }
