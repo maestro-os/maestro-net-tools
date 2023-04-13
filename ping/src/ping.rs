@@ -10,8 +10,18 @@ pub struct PingContext {
 	///
 	/// If `None`, there is no limit.
 	pub count: Option<NonZeroUsize>,
+	/// The interval between echo packets.
+	pub interval: Duration,
+	/// The timeout before `ping` exits regardless of how many packets have been sent.
+	///
+	/// If `None`, there is no deadline.
+	pub deadline: Option<Duration>,
+	/// The time to wait for a response for each packet.
+	pub timeout: Duration,
 	/// The size of packets to be sent.
 	pub packet_size: usize,
+	/// IP Time To Live.
+	pub ttl: u32,
 
 	/// The destination address or hostname.
 	pub dest: String,
@@ -25,15 +35,15 @@ impl PingContext {
 		let addr = "TODO"; // TODO get IP for dest
 		println!("PING {} ({}) {} data bytes", self.dest, addr, self.packet_size);
 
-		let interval = Duration::from_millis(1000); // TODO take from params
-
 		let mut seq = 0;
 
 		loop {
 			// Break if count has been reached
-			match self.count {
-				Some(count) if seq >= count.get() => break,
-				_ => {},
+			let cont = self.count
+				.map(|c| seq >= c.get())
+				.unwrap_or(true);
+			if !cont {
+				break;
 			}
 
 			// TODO
@@ -41,7 +51,7 @@ impl PingContext {
 
 			seq += 1;
 
-			thread::sleep(interval);
+			thread::sleep(self.interval);
 		}
 
 		// TODO on receive:

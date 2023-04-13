@@ -5,17 +5,30 @@ mod ping;
 use ping::PingContext;
 use std::env;
 use std::num::NonZeroUsize;
+use std::time::Duration;
 
 /// Structure storing arguments.
 struct Args {
-	// TODO
-
 	/// The number of packets to send.
 	///
 	/// If `None`, there is no limit.
 	count: Option<NonZeroUsize>,
+	/// The interval between echo packets.
+	///
+	/// If `None`, a duration of 1 second is used.
+	interval: Option<Duration>,
+	/// The timeout before `ping` exits regardless of how many packets have been sent.
+	deadline: Option<Duration>,
+	/// The time to wait for a response for each packet.
+	///
+	/// If `None`, TODO
+	timeout: Option<Duration>,
 	/// The size of packets to be sent.
-	packet_size: usize,
+	packet_size: Option<usize>,
+	/// IP Time To Live.
+	///
+	/// If `None`, TODO
+	ttl: Option<u32>,
 
 	/// The destination address or hostname.
 	dest: String,
@@ -24,10 +37,12 @@ struct Args {
 impl Default for Args {
 	fn default() -> Self {
 		Self {
-			// TODO
-
 			count: None,
-			packet_size: 56,
+			interval: None,
+			deadline: None,
+			timeout: None,
+			packet_size: None,
+			ttl: None,
 
 			dest: String::new(),
 		}
@@ -57,7 +72,11 @@ fn main() {
 
 	let mut ctx = PingContext {
 		count: args.count,
-		packet_size: args.packet_size,
+		interval: args.interval.unwrap_or(Duration::from_secs(1)),
+		deadline: args.deadline,
+		timeout: args.timeout.unwrap_or(Duration::from_secs(2)),
+		packet_size: args.packet_size.unwrap_or(56),
+		ttl: args.ttl.unwrap_or(115),
 
 		dest: args.dest,
 	};
