@@ -1,6 +1,7 @@
 //! The `ping` command allows to send ICMP ECHO_REQUEST to network hosts.
 
 mod ping;
+mod sock;
 
 use ping::PingContext;
 use std::env;
