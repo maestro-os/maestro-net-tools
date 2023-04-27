@@ -5,6 +5,8 @@ mod ping;
 use ping::PingContext;
 use std::env;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 /// Structure storing arguments.
@@ -70,7 +72,7 @@ fn parse_args() -> Args {
 fn main() {
 	let args = parse_args();
 
-	let mut ctx = PingContext {
+	let ctx = Arc::new(PingContext {
 		count: args.count,
 		interval: args.interval.unwrap_or(Duration::from_secs(1)),
 		deadline: args.deadline,
@@ -79,6 +81,8 @@ fn main() {
 		ttl: args.ttl.unwrap_or(115),
 
 		dest: args.dest,
-	};
+		seq: Mutex::new(0),
+		int: Mutex::new(false),
+	});
     ctx.ping();
 }
