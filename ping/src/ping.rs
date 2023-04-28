@@ -4,7 +4,6 @@ use signal_hook::consts::SIGINT;
 use signal_hook::iterator::Signals;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::thread;
 use std::time::Duration;
 use std::time::Instant;
@@ -30,17 +29,18 @@ pub struct PingContext {
 
     /// The destination address or hostname.
     pub dest: String,
-    /// The current sequence number.
-    pub seq: Mutex<usize>,
-    /// Tells whether pinging was interrupted.
-    pub int: Mutex<bool>,
 }
 
 impl PingContext {
+    /// TODO doc
+    async fn send_packet(&self) {
+        // TODO
+    }
+
     /// Pings using the current context.
     ///
     /// The function returns when pinging is over.
-    pub fn ping(self: Arc<Self>) {
+    pub async fn ping(self: Arc<Self>) {
         let addr = "TODO"; // TODO resolve dns
         println!(
             "PING {} ({}) {} data bytes",
@@ -49,34 +49,7 @@ impl PingContext {
 
         let start = Instant::now();
 
-        let self1 = self.clone();
-        thread::spawn(move || {
-            let mut signals = Signals::new(&[SIGINT]).unwrap();
-            if signals.forever().next().is_some() {
-                *self1.int.lock().unwrap() = true;
-            }
-        });
-
-        // Sending packets
-        let self2 = self.clone();
-        thread::spawn(move || {
-            loop {
-                let cont = self2
-                    .count
-                    .map(|c| *self2.seq.lock().unwrap() < c.get())
-                    .unwrap_or(true);
-                if !cont {
-                    break;
-                }
-
-                // TODO send a packet
-
-                *self2.seq.lock().unwrap() += 1;
-
-                thread::sleep(self2.interval);
-            }
-        });
-
+        let mut seq = 0;
         let mut receive_count = 0;
 
         while !*self.int.lock().unwrap() {
@@ -86,11 +59,27 @@ impl PingContext {
                 break;
             }
 
-            // TODO block receiving packets
-            // TODO on receive:
-            // println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
+            tokio::select! {
+                biased;
 
-            receive_count += 1;
+                // Wait for interrupt signal
+                _ = tokio::task::spawn_blocking(move || {
+                    let mut signals = Signals::new(&[SIGINT]).unwrap();
+                    signals.forever().next();
+                }) => break,
+
+                // Send packet
+                _ = self.send_packet() => {}
+
+                // Receive packet
+                _ = tokio::task::spawn_blocking(move || {
+                    // TODO block receiving packets
+                    // TODO on receive:
+                    // println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
+
+                    receive_count += 1;
+                }) => {}
+            }
         }
 
         let elapsed = start.elapsed();
