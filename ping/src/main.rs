@@ -4,8 +4,10 @@ mod ping;
 mod sock;
 
 use ping::PingContext;
+use sock::RawSocket;
 use std::env;
 use std::num::NonZeroUsize;
+use std::process::exit;
 use std::time::Duration;
 
 /// Structure storing arguments.
@@ -71,6 +73,12 @@ fn parse_args() -> Args {
 fn main() {
     let args = parse_args();
 
+	let sock = RawSocket::new()
+		.unwrap_or_else(|e| {
+			// TODO print error
+			exit(1);
+		});
+
     let ctx = PingContext {
         count: args.count,
         interval: args.interval.unwrap_or(Duration::from_secs(1)),
@@ -80,6 +88,12 @@ fn main() {
         ttl: args.ttl.unwrap_or(115),
 
         dest: args.dest,
+
+		sock,
     };
-    ctx.ping();
+
+    if let Err(e) = ctx.ping() {
+		// TODO print error
+		exit(1);
+	}
 }

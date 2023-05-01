@@ -1,12 +1,19 @@
 //! This module implements pinging.
 
+use crate::sock::RawSocket;
 use signal_hook::consts::{SIGALRM, SIGINT};
+use std::io::ErrorKind;
+use std::io::Read;
+use std::io;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
+
+/// The size of the read buffer in bytes.
+const BUF_SIZE: usize = 1024; // TODO
 
 /// A pinging context.
 pub struct PingContext {
@@ -29,6 +36,9 @@ pub struct PingContext {
 
     /// The destination address or hostname.
     pub dest: String,
+
+	/// The socket.
+	pub sock: RawSocket,
 }
 
 impl PingContext {
@@ -48,7 +58,7 @@ impl PingContext {
     /// Pings using the current context.
     ///
     /// The function returns when pinging is over.
-    pub fn ping(self) {
+    pub fn ping(mut self) -> io::Result<()> {
         let addr = "TODO"; // TODO resolve dns
         println!(
             "PING {} ({}) {} data bytes",
@@ -69,6 +79,9 @@ impl PingContext {
         let mut transmit_count = 0;
         let mut receive_count = 0;
 
+		let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+		let mut buf_cursor = 0;
+
         loop {
             // Break if count has been reached
             let cont = self.count.map(|c| receive_count < c.get()).unwrap_or(true);
@@ -87,11 +100,18 @@ impl PingContext {
 			}
 
 			// Receive packet
-			// TODO on receive:
-			// println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
+			let res = self.sock.read(&mut buf[buf_cursor..]);
+			match res {
+				Ok(len) => buf_cursor += len,
+				// If the timer expired or if pinging has been interrupted
+				Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+				Err(e) => return Err(e),
+			}
 
-			// TODO do not increment if read syscall is interrupted
-			receive_count += 1;
+			// TODO check packet
+			// if correct, print message, discard packet from buffer, then increment receive_count
+			// println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
+			//receive_count += 1;
         }
 
         let elapsed = start.elapsed();
@@ -114,5 +134,7 @@ impl PingContext {
         );
         // TODO end:
         // println!("rtt min/avg/max/mdev = {}/{}/{}/{} ms");
+
+		Ok(())
     }
 }
