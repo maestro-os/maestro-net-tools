@@ -3,6 +3,10 @@
 use std::io;
 use std::io::Write;
 use std::mem::size_of;
+use std::net::IpAddr;
+use std::slice;
+
+// TODO support IPv6
 
 /// The ICMP header.
 ///
@@ -14,7 +18,7 @@ use std::mem::size_of;
 ///
 /// For more informations, see RFC 792.
 #[repr(C, packed)]
-pub struct ICMPv4Header {
+struct ICMPv4Header {
 	/// The version of the header with the IHL (header length).
 	version_ihl: u8,
 	/// The type of service.
@@ -46,6 +50,12 @@ pub struct ICMPv4Header {
 	code: u8,
 	/// TODO doc
 	checksum: u16,
+
+	// Beginning of fields specific to Echo and Echo reply messages
+	/// TODO doc
+	identifier: u16,
+	/// The sequence number.
+	seq: u16,
 }
 
 /// Writes a ping message to the given stream.
@@ -53,9 +63,60 @@ pub struct ICMPv4Header {
 /// Arguments:
 /// - `stream` is the stream to write to.
 /// - `seq` is the sequence number.
-pub fn write_ping<S: Write>(stream: &mut S, seq: usize) -> io::Result<()> {
-	// TODO
-	todo!()
+/// - `ttl` is the Time to Live.
+/// - `size` is the size of the packet's payload.
+pub fn write_ping<S: Write>(stream: &mut S, seq: u16, ttl: u8, size: usize) -> io::Result<()> {
+	let hdr = ICMPv4Header {
+		version_ihl: 4 | ((size_of::<ICMPv4Header>() / 4) << 4) as u8,
+		type_of_service: 0,
+		total_length: (size_of::<ICMPv4Header>() + size) as _,
+
+		identification: 0,
+		flags_fragment_offset: 0,
+
+		ttl,
+		protocol: 1,
+		hdr_checksum: 0, // TODO
+
+		src_addr: [0; 4], // TODO
+		dst_addr: [0; 4], // TODO
+
+		r#type: 8, // 8 = echo message
+		code: 0,
+		checksum: 0, // TODO
+
+		identifier: 0,
+		seq,
+	};
+
+	// Write header
+	let hdr_buf = unsafe {
+		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
+	};
+	stream.write(hdr_buf)?;
+
+	// TODO padding at the end if size is not a multiple of 4
+	// TODO fill with garbage instead?
+	// Write payload
+	let buf = vec![0; size];
+	stream.write(&buf)?;
+
+	stream.flush()
+}
+
+/// Informations about a packet reply.
+pub struct ReplyInfo {
+	/// The size of the entire packet. Used to discard it from the buffer.
+	pub size: usize,
+	/// The size of the payload in bytes.
+	pub payload_size: usize,
+	/// The source IP address.
+	pub src_addr: IpAddr,
+
+	/// The sequence number of the reply.
+	pub seq: u16,
+	/// Time to Live.
+	pub ttl: u8,
 }
 
 /// Parses an ICMP packet.
@@ -63,7 +124,7 @@ pub fn write_ping<S: Write>(stream: &mut S, seq: usize) -> io::Result<()> {
 /// The function checks checksums.
 ///
 /// If the buffer is not large enough to fit the packet, the function returns `None`.
-pub fn parse(buf: &[u8]) -> Option<()> {
+pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 	if buf.len() < size_of::<ICMPv4Header>() {
 		return None;
 	}

@@ -7,22 +7,19 @@ use signal_hook::consts::{SIGALRM, SIGINT};
 use std::io;
 use std::io::ErrorKind;
 use std::io::Read;
-use std::num::NonZeroUsize;
+use std::num::NonZeroU16;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
-/// The size of the read buffer in bytes.
-const BUF_SIZE: usize = 1024; // TODO
-
 /// A pinging context.
 pub struct PingContext {
 	/// The number of packets to receive.
 	///
 	/// If `None`, there is no limit.
-	pub count: Option<NonZeroUsize>,
+	pub count: Option<NonZeroU16>,
 	/// The interval between echo packets.
 	pub interval: Duration,
 	/// The timeout before `ping` exits regardless of how many packets have been sent.
@@ -44,11 +41,12 @@ pub struct PingContext {
 }
 
 impl PingContext {
-	/// TODO doc
+	/// Sends a packet.
 	///
 	/// `seq` is the sequence number of the packet to send.
-	fn send_packet(&mut self, seq: usize) -> io::Result<()> {
-		packet::write_ping(&mut self.sock, seq)
+	fn send_packet(&mut self, seq: u16) -> io::Result<()> {
+		packet::write_ping(&mut self.sock, seq, self.ttl, self.packet_size)?;
+		Ok(())
 	}
 
 	/// Pings using the current context.
@@ -68,18 +66,18 @@ impl PingContext {
 		signal_hook::flag::register(SIGINT, Arc::clone(&int)).unwrap();
 
 		// Start timer
-		let timer = Timer::new(self.interval);
+		let _timer = Timer::new(self.interval);
 
 		let start = Instant::now();
 
-		let mut transmit_count = 0;
-		let mut receive_count = 0;
+		let mut transmit_count: u16 = 0;
+		let mut receive_count: u16 = 0;
 
 		// Send first packet
 		self.send_packet(transmit_count)?;
 		transmit_count += 1;
 
-		let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+		let mut buf = vec![0; 128 + self.packet_size];
 		let mut buf_cursor = 0;
 
 		loop {
@@ -112,7 +110,12 @@ impl PingContext {
 				// TODO
 				println!(
 					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
-					0, 0, 0, 0, 0, 0
+					pack.payload_size,
+					pack.src_addr,
+					"TODO", // TODO
+					pack.seq,
+					pack.ttl,
+					0 // TODO time
 				);
 
 				// TODO discard packet from buffer

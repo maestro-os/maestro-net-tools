@@ -8,7 +8,7 @@ mod timer;
 use ping::PingContext;
 use sock::RawSocket;
 use std::env;
-use std::num::NonZeroUsize;
+use std::num::NonZeroU16;
 use std::process::exit;
 use std::time::Duration;
 
@@ -20,7 +20,7 @@ struct Args {
 	/// The number of packets to send.
 	///
 	/// If `None`, there is no limit.
-	count: Option<NonZeroUsize>,
+	count: Option<NonZeroU16>,
 	/// If `true`, pinging broadcast is allowed.
 	allow_broadcast: bool,
 	/// The interval between echo packets.
@@ -201,7 +201,7 @@ fn main() {
 	let args = parse_args();
 
 	let sock = RawSocket::new().unwrap_or_else(|e| {
-		// TODO print error
+		eprintln!("ping: cannot open socket: {}", e);
 		exit(1);
 	});
 
