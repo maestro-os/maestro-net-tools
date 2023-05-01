@@ -1,5 +1,7 @@
 //! TODO doc
 
+use std::io::Write;
+use std::io;
 use std::mem::size_of;
 
 /// The ICMP header.
@@ -47,12 +49,22 @@ pub struct ICMPv4Header {
 	checksum: u16,
 }
 
+/// Writes a ping message to the given stream.
+///
+/// Arguments:
+/// - `stream` is the stream to write to.
+/// - `seq` is the sequence number.
+pub fn write_ping<S: Write>(stream: &mut S, seq: usize) -> io::Result<()> {
+	// TODO
+	todo!()
+}
+
 /// Parses an ICMP packet.
 ///
 /// The function checks checksums.
 ///
 /// If the buffer is not large enough to fit the packet, the function returns `None`.
-pub fn parse_response(buf: &[u8]) -> Option<()> {
+pub fn parse(buf: &[u8]) -> Option<()> {
 	if buf.len() < size_of::<ICMPv4Header>() {
 		return None;
 	}

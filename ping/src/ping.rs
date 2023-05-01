@@ -47,9 +47,8 @@ impl PingContext {
     /// TODO doc
 	///
 	/// `seq` is the sequence number of the packet to send.
-    fn send_packet(&self, seq: usize) {
-        // TODO
-		todo!()
+    fn send_packet(&mut self, seq: usize) -> io::Result<()> {
+        packet::write_ping(&mut self.sock, seq)
     }
 
     /// Pings using the current context.
@@ -77,7 +76,7 @@ impl PingContext {
         let mut receive_count = 0;
 
 		// Send first packet
-		self.send_packet(transmit_count);
+		self.send_packet(transmit_count)?;
 		transmit_count += 1;
 
 		let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
@@ -95,7 +94,7 @@ impl PingContext {
 				// Reset timer
 				alarm.store(false, Ordering::Relaxed);
 
-				self.send_packet(transmit_count);
+				self.send_packet(transmit_count)?;
 				transmit_count += 1;
 			}
 
@@ -109,11 +108,22 @@ impl PingContext {
 			}
 
 			// Check packet
-			let pack = packet::parse_response(&buf);
-			// TODO if correct, print message, discard packet from buffer, then increment receive_count
+			if let Some(pack) = packet::parse(&buf) {
+				// TODO
+				println!(
+					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
+					0,
+					0,
+					0,
+					0,
+					0,
+					0
+				);
 
-			// println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
-			//receive_count += 1;
+				// TODO discard packet from buffer
+
+				receive_count += 1;
+			}
         }
 
         let elapsed = start.elapsed();
