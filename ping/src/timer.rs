@@ -20,9 +20,7 @@ impl Timer {
 
 		// Create timer
 		let mut id: *mut c_void = null_mut::<_>();
-		let res = unsafe {
-			libc::timer_create(libc::CLOCK_REALTIME, null_mut::<_>(), &mut id)
-		};
+		let res = unsafe { libc::timer_create(libc::CLOCK_REALTIME, null_mut::<_>(), &mut id) };
 		if res < 0 {
 			return Err(io::Error::last_os_error());
 		}
@@ -32,16 +30,14 @@ impl Timer {
 		let its = libc::itimerspec {
 			it_interval: libc::timespec {
 				tv_sec: (nanos / 1000000000) as _,
-				tv_nsec: (nanos % 1000000000) as _
+				tv_nsec: (nanos % 1000000000) as _,
 			},
 			it_value: libc::timespec {
 				tv_sec: 0,
-				tv_nsec: 0
-			}
+				tv_nsec: 0,
+			},
 		};
-		let res = unsafe {
-			libc::timer_settime(id, 0, &its, null_mut::<_>())
-		};
+		let res = unsafe { libc::timer_settime(id, 0, &its, null_mut::<_>()) };
 		if res < 0 {
 			return Err(io::Error::last_os_error());
 		}

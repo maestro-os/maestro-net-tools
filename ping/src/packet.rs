@@ -1,7 +1,7 @@
 //! TODO doc
 
-use std::io::Write;
 use std::io;
+use std::io::Write;
 use std::mem::size_of;
 
 /// The ICMP header.
@@ -40,7 +40,6 @@ pub struct ICMPv4Header {
 	dst_addr: [u8; 4],
 
 	// Beginning of the actual ICMP header
-
 	/// TODO doc
 	r#type: u8,
 	/// TODO doc
