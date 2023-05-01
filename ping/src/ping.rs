@@ -4,13 +4,13 @@ use crate::packet;
 use crate::sock::RawSocket;
 use crate::timer::Timer;
 use signal_hook::consts::{SIGALRM, SIGINT};
+use std::io;
 use std::io::ErrorKind;
 use std::io::Read;
-use std::io;
 use std::num::NonZeroUsize;
-use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -19,7 +19,7 @@ const BUF_SIZE: usize = 1024; // TODO
 
 /// A pinging context.
 pub struct PingContext {
-    /// The number of packets to send.
+    /// The number of packets to receive.
     ///
     /// If `None`, there is no limit.
     pub count: Option<NonZeroUsize>,
@@ -34,19 +34,19 @@ pub struct PingContext {
     /// The size of packets to be sent.
     pub packet_size: usize,
     /// IP Time To Live.
-    pub ttl: u32,
+    pub ttl: u8,
 
     /// The destination address or hostname.
     pub dest: String,
 
-	/// The socket.
-	pub sock: RawSocket,
+    /// The socket.
+    pub sock: RawSocket,
 }
 
 impl PingContext {
     /// TODO doc
-	///
-	/// `seq` is the sequence number of the packet to send.
+    ///
+    /// `seq` is the sequence number of the packet to send.
     fn send_packet(&mut self, seq: usize) -> io::Result<()> {
         packet::write_ping(&mut self.sock, seq)
     }
@@ -61,26 +61,26 @@ impl PingContext {
             self.dest, addr, self.packet_size
         );
 
-		// Catch signals
-		let alarm = Arc::new(AtomicBool::new(false));
-		let int = Arc::new(AtomicBool::new(false));
-		signal_hook::flag::register(SIGALRM, Arc::clone(&alarm)).unwrap();
-		signal_hook::flag::register(SIGINT, Arc::clone(&int)).unwrap();
+        // Catch signals
+        let alarm = Arc::new(AtomicBool::new(false));
+        let int = Arc::new(AtomicBool::new(false));
+        signal_hook::flag::register(SIGALRM, Arc::clone(&alarm)).unwrap();
+        signal_hook::flag::register(SIGINT, Arc::clone(&int)).unwrap();
 
-		// Start timer
-		let timer = Timer::new(self.interval);
+        // Start timer
+        let timer = Timer::new(self.interval);
 
         let start = Instant::now();
 
         let mut transmit_count = 0;
         let mut receive_count = 0;
 
-		// Send first packet
-		self.send_packet(transmit_count)?;
-		transmit_count += 1;
+        // Send first packet
+        self.send_packet(transmit_count)?;
+        transmit_count += 1;
 
-		let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
-		let mut buf_cursor = 0;
+        let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+        let mut buf_cursor = 0;
 
         loop {
             // Break if count has been reached
@@ -89,41 +89,36 @@ impl PingContext {
                 break;
             }
 
-			// Send signal if interval has been reached
-			if alarm.load(Ordering::Relaxed) {
-				// Reset timer
-				alarm.store(false, Ordering::Relaxed);
+            // Send signal if interval has been reached
+            if alarm.load(Ordering::Relaxed) {
+                // Reset timer
+                alarm.store(false, Ordering::Relaxed);
 
-				self.send_packet(transmit_count)?;
-				transmit_count += 1;
-			}
+                self.send_packet(transmit_count)?;
+                transmit_count += 1;
+            }
 
-			// Receive packet
-			let res = self.sock.read(&mut buf[buf_cursor..]);
-			match res {
-				Ok(len) => buf_cursor += len,
-				// If the timer expired or if pinging has been interrupted
-				Err(e) if e.kind() == ErrorKind::Interrupted => continue,
-				Err(e) => return Err(e),
-			}
+            // Receive packet
+            let res = self.sock.read(&mut buf[buf_cursor..]);
+            match res {
+                Ok(len) => buf_cursor += len,
+                // If the timer expired or if pinging has been interrupted
+                Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e),
+            }
 
-			// Check packet
-			if let Some(pack) = packet::parse(&buf) {
-				// TODO
-				println!(
-					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
-					0,
-					0,
-					0,
-					0,
-					0,
-					0
-				);
+            // Check packet
+            if let Some(pack) = packet::parse(&buf) {
+                // TODO
+                println!(
+                    "{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
+                    0, 0, 0, 0, 0, 0
+                );
 
-				// TODO discard packet from buffer
+                // TODO discard packet from buffer
 
-				receive_count += 1;
-			}
+                receive_count += 1;
+            }
         }
 
         let elapsed = start.elapsed();
@@ -147,6 +142,6 @@ impl PingContext {
         // TODO end:
         // println!("rtt min/avg/max/mdev = {}/{}/{}/{} ms");
 
-		Ok(())
+        Ok(())
     }
 }
