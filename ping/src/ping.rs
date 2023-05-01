@@ -1,10 +1,10 @@
 //! This module implements pinging.
 
-use signal_hook::consts::SIGINT;
-use signal_hook::iterator::Signals;
+use signal_hook::consts::{SIGALRM, SIGINT};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::thread;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -33,58 +33,69 @@ pub struct PingContext {
 
 impl PingContext {
     /// TODO doc
-    async fn send_packet(&self) {
+	///
+	/// `seq` is the sequence number of the packet to send.
+    fn send_packet(&self, seq: usize) {
         // TODO
     }
+
+	/// Sets the timer to the given duration.
+	fn set_timer(_d: Duration) {
+		// TODO
+		todo!();
+	}
 
     /// Pings using the current context.
     ///
     /// The function returns when pinging is over.
-    pub async fn ping(self: Arc<Self>) {
+    pub fn ping(self) {
         let addr = "TODO"; // TODO resolve dns
         println!(
             "PING {} ({}) {} data bytes",
             self.dest, addr, self.packet_size
         );
 
+		// Catch signals
+		let alarm = Arc::new(AtomicBool::new(false));
+		let int = Arc::new(AtomicBool::new(false));
+		signal_hook::flag::register(SIGALRM, Arc::clone(&alarm)).unwrap();
+		signal_hook::flag::register(SIGINT, Arc::clone(&int)).unwrap();
+
+		// Start timer
+		Self::set_timer(self.interval);
+
         let start = Instant::now();
 
-        let mut seq = 0;
+        let mut transmit_count = 0;
         let mut receive_count = 0;
 
-        while !*self.int.lock().unwrap() {
+        loop {
             // Break if count has been reached
             let cont = self.count.map(|c| receive_count < c.get()).unwrap_or(true);
-            if !cont {
+            if int.load(Ordering::Relaxed) || !cont {
                 break;
             }
 
-            tokio::select! {
-                biased;
+			// Send signal if interval has been reached
+			if alarm.load(Ordering::Relaxed) {
+				self.send_packet(transmit_count);
+				transmit_count += 1;
 
-                // Wait for interrupt signal
-                _ = tokio::task::spawn_blocking(move || {
-                    let mut signals = Signals::new(&[SIGINT]).unwrap();
-                    signals.forever().next();
-                }) => break,
+				// Reset timer
+				alarm.store(false, Ordering::Relaxed);
+				Self::set_timer(self.interval);
+			}
 
-                // Send packet
-                _ = self.send_packet() => {}
+			// Receive packet
+			// TODO on receive:
+			// println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
 
-                // Receive packet
-                _ = tokio::task::spawn_blocking(move || {
-                    // TODO block receiving packets
-                    // TODO on receive:
-                    // println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
-
-                    receive_count += 1;
-                }) => {}
-            }
+			// TODO do not increment if read syscall is interrupted
+			receive_count += 1;
         }
 
         let elapsed = start.elapsed();
 
-        let transmit_count = *self.seq.lock().unwrap();
         let loss_count = if receive_count <= transmit_count {
             transmit_count - receive_count
         } else {

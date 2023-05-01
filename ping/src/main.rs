@@ -6,7 +6,6 @@ mod sock;
 use ping::PingContext;
 use std::env;
 use std::num::NonZeroUsize;
-use std::sync::Arc;
 use std::time::Duration;
 
 /// Structure storing arguments.
@@ -69,11 +68,10 @@ fn parse_args() -> Args {
     args
 }
 
-#[tokio::main(flavor = "current_thread")]
-async fn main() {
+fn main() {
     let args = parse_args();
 
-    let ctx = Arc::new(PingContext {
+    let ctx = PingContext {
         count: args.count,
         interval: args.interval.unwrap_or(Duration::from_secs(1)),
         deadline: args.deadline,
@@ -82,6 +80,6 @@ async fn main() {
         ttl: args.ttl.unwrap_or(115),
 
         dest: args.dest,
-    });
-    ctx.ping().await;
+    };
+    ctx.ping();
 }
