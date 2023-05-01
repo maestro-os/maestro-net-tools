@@ -1,5 +1,6 @@
 //! The `ping` command allows to send ICMP ECHO_REQUEST to network hosts.
 
+mod packet;
 mod ping;
 mod sock;
 

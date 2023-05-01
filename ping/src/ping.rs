@@ -1,5 +1,6 @@
 //! This module implements pinging.
 
+use crate::packet;
 use crate::sock::RawSocket;
 use signal_hook::consts::{SIGALRM, SIGINT};
 use std::io::ErrorKind;
@@ -52,7 +53,6 @@ impl PingContext {
 	/// Sets the timer to the given duration.
 	fn set_timer(_d: Duration) {
 		// TODO
-		todo!();
 	}
 
     /// Pings using the current context.
@@ -108,8 +108,10 @@ impl PingContext {
 				Err(e) => return Err(e),
 			}
 
-			// TODO check packet
-			// if correct, print message, discard packet from buffer, then increment receive_count
+			// Check packet
+			let pack = packet::parse_response(&buf);
+			// TODO if correct, print message, discard packet from buffer, then increment receive_count
+
 			// println!("{} bytes from {} ({}): icmp_seq={} ttl={} time={}");
 			//receive_count += 1;
         }
