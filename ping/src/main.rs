@@ -3,6 +3,7 @@
 mod packet;
 mod ping;
 mod sock;
+mod timer;
 
 use ping::PingContext;
 use sock::RawSocket;
@@ -80,7 +81,7 @@ fn main() {
 			exit(1);
 		});
 
-    let ctx = PingContext {
+    let mut ctx = PingContext {
         count: args.count,
         interval: args.interval.unwrap_or(Duration::from_secs(1)),
         deadline: args.deadline,
@@ -94,7 +95,7 @@ fn main() {
     };
 
     if let Err(e) = ctx.ping() {
-		// TODO print error
+		eprintln!("ping: {}: {}", ctx.dest, e);
 		exit(1);
 	}
 }

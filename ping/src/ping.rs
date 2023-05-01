@@ -2,6 +2,7 @@
 
 use crate::packet;
 use crate::sock::RawSocket;
+use crate::timer::Timer;
 use signal_hook::consts::{SIGALRM, SIGINT};
 use std::io::ErrorKind;
 use std::io::Read;
@@ -48,17 +49,13 @@ impl PingContext {
 	/// `seq` is the sequence number of the packet to send.
     fn send_packet(&self, seq: usize) {
         // TODO
+		todo!()
     }
-
-	/// Sets the timer to the given duration.
-	fn set_timer(_d: Duration) {
-		// TODO
-	}
 
     /// Pings using the current context.
     ///
     /// The function returns when pinging is over.
-    pub fn ping(mut self) -> io::Result<()> {
+    pub fn ping(&mut self) -> io::Result<()> {
         let addr = "TODO"; // TODO resolve dns
         println!(
             "PING {} ({}) {} data bytes",
@@ -72,12 +69,16 @@ impl PingContext {
 		signal_hook::flag::register(SIGINT, Arc::clone(&int)).unwrap();
 
 		// Start timer
-		Self::set_timer(self.interval);
+		let timer = Timer::new(self.interval);
 
         let start = Instant::now();
 
         let mut transmit_count = 0;
         let mut receive_count = 0;
+
+		// Send first packet
+		self.send_packet(transmit_count);
+		transmit_count += 1;
 
 		let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
 		let mut buf_cursor = 0;
@@ -91,12 +92,11 @@ impl PingContext {
 
 			// Send signal if interval has been reached
 			if alarm.load(Ordering::Relaxed) {
-				self.send_packet(transmit_count);
-				transmit_count += 1;
-
 				// Reset timer
 				alarm.store(false, Ordering::Relaxed);
-				Self::set_timer(self.interval);
+
+				self.send_packet(transmit_count);
+				transmit_count += 1;
 			}
 
 			// Receive packet

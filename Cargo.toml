@@ -3,3 +3,8 @@
 members = [
 	"ping"
 ]
+
+[profile.release]
+lto = true
+panic = "abort"
+strip = true
