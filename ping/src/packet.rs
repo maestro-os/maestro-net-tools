@@ -1,9 +1,12 @@
 //! TODO doc
 
+use crate::sock::RawSocket;
 use std::io;
-use std::io::Write;
 use std::mem::size_of;
 use std::net::IpAddr;
+use std::net::Ipv4Addr;
+use std::net::SocketAddr;
+use std::net::SocketAddrV4;
 use std::slice;
 
 // TODO support IPv6
@@ -89,9 +92,9 @@ struct ICMPv4Header {
 /// - `seq` is the sequence number.
 /// - `ttl` is the Time to Live.
 /// - `size` is the size of the packet's payload.
-pub fn write_ping<S: Write>(stream: &mut S, seq: u16, ttl: u8, size: usize) -> io::Result<()> {
+pub fn write_ping(stream: &mut RawSocket, seq: u16, ttl: u8, size: usize) -> io::Result<()> {
 	let mut hdr = ICMPv4Header {
-		version_ihl: 4 | ((20 / 4) << 4) as u8,
+		version_ihl: (4 << 4) | (20 / 4) as u8,
 		type_of_service: 0,
 		total_length: ((size_of::<ICMPv4Header>() + size) as u16).to_be(),
 
@@ -100,45 +103,47 @@ pub fn write_ping<S: Write>(stream: &mut S, seq: u16, ttl: u8, size: usize) -> i
 
 		ttl,
 		protocol: 1,
-		hdr_checksum: 0, // TODO
+		hdr_checksum: 0,
 
 		src_addr: [0; 4],         // INADDR_ANY
 		dst_addr: [127, 0, 0, 1], // TODO
 
 		r#type: 8, // 8 = echo message
 		code: 0,
-		checksum: 0, // TODO
+		checksum: 0,
 
 		identifier: 0,
 		seq,
 	};
 
-	// Compute header checksum
+	// Compute header checksums
 	let hdr_buf = unsafe {
 		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
 	};
 	let chk = compute_rfc1071(&hdr_buf[..20]);
 	hdr.hdr_checksum = chk;
-
-	// Compute total checksum
 	let hdr_buf = unsafe {
 		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
 	};
 	let chk = compute_rfc1071(hdr_buf);
 	hdr.checksum = chk;
 
+	let mut buf = vec![0; size_of::<ICMPv4Header>() + size];
+
 	// Write header
 	let hdr_buf = unsafe {
 		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
 	};
-	stream.write(hdr_buf)?;
+	buf[..hdr_buf.len()].copy_from_slice(hdr_buf);
 
-	// TODO fill with garbage instead?
 	// Write payload
-	let buf = vec![0; size];
-	stream.write(&buf)?;
+	// TODO
 
-	stream.flush()
+	stream.send_to(
+		&buf,
+		SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0)),
+	)?;
+	Ok(())
 }
 
 /// Informations about a packet reply.

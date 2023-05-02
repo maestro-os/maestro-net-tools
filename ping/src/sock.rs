@@ -3,6 +3,8 @@
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use std::mem::size_of;
+use std::net::SocketAddr;
 use std::os::fd::AsRawFd;
 
 /// A raw socket, allowing to access the ICMP protocol.
@@ -25,6 +27,44 @@ impl RawSocket {
 		Ok(Self {
 			sock: res,
 		})
+	}
+
+	/// TODO doc
+	pub fn send_to(&self, buf: &[u8], addr: SocketAddr) -> io::Result<usize> {
+		let res = match addr {
+			SocketAddr::V4(a) => {
+				let addr = libc::sockaddr_in {
+					sin_addr: libc::in_addr {
+						s_addr: u32::from_ne_bytes(a.ip().octets()),
+					},
+					sin_family: libc::AF_INET as _,
+					sin_port: addr.port(),
+					sin_zero: [0; 8],
+				};
+
+				unsafe {
+					libc::sendto(
+						self.sock,
+						buf.as_ptr() as *const _,
+						buf.len(),
+						0,
+						&addr as *const _ as *const _,
+						size_of::<libc::sockaddr_in>() as _,
+					)
+				}
+			}
+
+			SocketAddr::V6(a) => {
+				// TODO
+				todo!()
+			}
+		};
+
+		if res >= 0 {
+			Ok(res as _)
+		} else {
+			Err(io::Error::last_os_error())
+		}
 	}
 }
 
