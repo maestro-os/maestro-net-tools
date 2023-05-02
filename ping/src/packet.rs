@@ -8,6 +8,30 @@ use std::slice;
 
 // TODO support IPv6
 
+/// Computes a checksum on `data` according to RFC1071.
+fn compute_rfc1071(data: &[u8]) -> u16 {
+	let mut sum: u32 = 0;
+	let mut i = 0;
+
+	// Main loop
+	while i < (data.len() & !1) {
+		sum += ((data[i + 1] as u32) << 8) | (data[i] as u32);
+		i += 2;
+	}
+
+	// Add remaining byte
+	if i < data.len() {
+		sum += data[i] as u32;
+	}
+
+	// Folding 32-bits value into 16-bits
+	while (sum >> 16) != 0 {
+		sum = (sum & 0xffff) + (sum >> 16);
+	}
+
+	(!sum) as u16
+}
+
 /// The ICMP header.
 ///
 /// The header is split in two parts:
@@ -66,10 +90,10 @@ struct ICMPv4Header {
 /// - `ttl` is the Time to Live.
 /// - `size` is the size of the packet's payload.
 pub fn write_ping<S: Write>(stream: &mut S, seq: u16, ttl: u8, size: usize) -> io::Result<()> {
-	let hdr = ICMPv4Header {
-		version_ihl: 4 | ((size_of::<ICMPv4Header>() / 4) << 4) as u8,
+	let mut hdr = ICMPv4Header {
+		version_ihl: 4 | ((20 / 4) << 4) as u8,
 		type_of_service: 0,
-		total_length: (size_of::<ICMPv4Header>() + size) as _,
+		total_length: ((size_of::<ICMPv4Header>() + size) as u16).to_be(),
 
 		identification: 0,
 		flags_fragment_offset: 0,
@@ -78,8 +102,8 @@ pub fn write_ping<S: Write>(stream: &mut S, seq: u16, ttl: u8, size: usize) -> i
 		protocol: 1,
 		hdr_checksum: 0, // TODO
 
-		src_addr: [0; 4], // TODO
-		dst_addr: [0; 4], // TODO
+		src_addr: [0; 4],         // INADDR_ANY
+		dst_addr: [127, 0, 0, 1], // TODO
 
 		r#type: 8, // 8 = echo message
 		code: 0,
@@ -89,13 +113,26 @@ pub fn write_ping<S: Write>(stream: &mut S, seq: u16, ttl: u8, size: usize) -> i
 		seq,
 	};
 
+	// Compute header checksum
+	let hdr_buf = unsafe {
+		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
+	};
+	let chk = compute_rfc1071(&hdr_buf[..20]);
+	hdr.hdr_checksum = chk;
+
+	// Compute total checksum
+	let hdr_buf = unsafe {
+		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
+	};
+	let chk = compute_rfc1071(hdr_buf);
+	hdr.checksum = chk;
+
 	// Write header
 	let hdr_buf = unsafe {
 		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
 	};
 	stream.write(hdr_buf)?;
 
-	// TODO padding at the end if size is not a multiple of 4
 	// TODO fill with garbage instead?
 	// Write payload
 	let buf = vec![0; size];

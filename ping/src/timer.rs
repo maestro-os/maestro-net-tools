@@ -1,4 +1,4 @@
-//! TODO doc
+//! A timer allows to wake the current process at a specified interval.
 
 use std::ffi::c_void;
 use std::io;
