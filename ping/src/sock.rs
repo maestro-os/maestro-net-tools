@@ -19,7 +19,7 @@ impl RawSocket {
 	/// If the process doesn't have the permission to open a raw socket, the function returns an
 	/// error.
 	pub fn new() -> io::Result<Self> {
-		let res = unsafe { libc::socket(libc::AF_PACKET, libc::SOCK_RAW, libc::IPPROTO_ICMP) };
+		let res = unsafe { libc::socket(libc::AF_INET, libc::SOCK_RAW, libc::IPPROTO_ICMP) };
 		if res < 0 {
 			return Err(io::Error::last_os_error());
 		}

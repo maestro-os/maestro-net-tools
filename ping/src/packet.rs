@@ -94,9 +94,9 @@ struct ICMPv4Header {
 /// - `size` is the size of the packet's payload.
 pub fn write_ping(stream: &mut RawSocket, seq: u16, ttl: u8, size: usize) -> io::Result<()> {
 	let mut hdr = ICMPv4Header {
-		version_ihl: (4 << 4) | (20 / 4) as u8,
+		version_ihl: 4 | ((20 / 4) << 4) as u8,
 		type_of_service: 0,
-		total_length: ((size_of::<ICMPv4Header>() + size) as u16).to_be(),
+		total_length: (20 + size) as _,
 
 		identification: 0,
 		flags_fragment_offset: 0,
@@ -125,16 +125,18 @@ pub fn write_ping(stream: &mut RawSocket, seq: u16, ttl: u8, size: usize) -> io:
 	let hdr_buf = unsafe {
 		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
 	};
-	let chk = compute_rfc1071(hdr_buf);
+	let chk = compute_rfc1071(&hdr_buf[20..]);
 	hdr.checksum = chk;
 
-	let mut buf = vec![0; size_of::<ICMPv4Header>() + size];
+	let mut buf = vec![0; size_of::<ICMPv4Header>() + size + 2];
+	// Set protocol to IPv4
+	buf[0] = 0x08;
 
 	// Write header
 	let hdr_buf = unsafe {
 		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
 	};
-	buf[..hdr_buf.len()].copy_from_slice(hdr_buf);
+	buf[2..(hdr_buf.len() + 2)].copy_from_slice(hdr_buf);
 
 	// Write payload
 	// TODO
