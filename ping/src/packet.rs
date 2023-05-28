@@ -142,7 +142,7 @@ pub fn write_ping(stream: &mut RawSocket, seq: u16, ttl: u8, size: usize) -> io:
 	// Write payload
 	// TODO
 
-	stream.send_to(
+	stream.sendto(
 		&buf,
 		SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0)),
 	)?;
@@ -177,10 +177,22 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 	let hdr = unsafe { &*(buf.as_ptr() as *const ICMPv4Header) };
 	println!("{:?}", hdr);
 
-	// TODO check if this is a ping reply, else discard
+	// TODO check hdr size
+	// TODO check type of service/protocol
+	// TODO check checksum
+
+	// Check if this is a ping reply, else discard
+	if hdr.r#type != 0 || hdr.code != 0 {
+		// TODO discard
+		return None;
+	}
+	if buf.len() < hdr.total_length as usize {
+		return None;
+	}
+	// TODO check payload checksum
 
 	Some(ReplyInfo {
-		size: hdr.total_length as usize * 4,
+		size: hdr.total_length as usize,
 		payload_size: 0, // TODO
 		src_addr: IpAddr::V4(hdr.src_addr.into()),
 

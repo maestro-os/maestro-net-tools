@@ -30,7 +30,13 @@ impl RawSocket {
 	}
 
 	/// TODO doc
-	pub fn send_to(&self, buf: &[u8], addr: SocketAddr) -> io::Result<usize> {
+	pub fn recvfrom(&self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
+		// TODO
+		todo!()
+	}
+
+	/// TODO doc
+	pub fn sendto(&self, buf: &[u8], addr: SocketAddr) -> io::Result<usize> {
 		let res = match addr {
 			SocketAddr::V4(a) => {
 				let addr = libc::sockaddr_in {

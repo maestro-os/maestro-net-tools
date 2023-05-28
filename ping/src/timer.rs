@@ -33,8 +33,8 @@ impl Timer {
 				tv_nsec: (nanos % 1000000000) as _,
 			},
 			it_value: libc::timespec {
-				tv_sec: 0,
-				tv_nsec: 0,
+				tv_sec: (nanos / 1000000000) as _,
+				tv_nsec: (nanos % 1000000000) as _,
 			},
 		};
 		let res = unsafe { libc::timer_settime(id, 0, &its, null_mut::<_>()) };

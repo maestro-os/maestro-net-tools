@@ -107,7 +107,7 @@ impl PingContext {
 		self.send_packet(transmit_count)?;
 		transmit_count += 1;
 
-		let mut buf = vec![0; 128 + self.packet_size];
+		let mut buf = vec![0; u16::MAX as usize];
 		let mut buf_cursor = 0;
 
 		loop {
@@ -117,19 +117,14 @@ impl PingContext {
 				break;
 			}
 
-			println!("A");
-
 			// Send signal if interval has been reached
 			if ALARM.load(Ordering::Relaxed) {
-				println!("B");
 				// Reset timer
 				ALARM.store(false, Ordering::Relaxed);
 
 				self.send_packet(transmit_count)?;
 				transmit_count += 1;
 			}
-
-			println!("C");
 
 			let res = self.sock.read(&mut buf[buf_cursor..]);
 			match res {
@@ -139,10 +134,8 @@ impl PingContext {
 				Err(e) => return Err(e),
 			}
 
-			println!("D");
-
 			// Check packet
-			if let Some(pack) = packet::parse(&buf) {
+			if let Some(pack) = packet::parse(&buf[..buf_cursor]) {
 				// TODO
 				println!(
 					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
@@ -154,7 +147,11 @@ impl PingContext {
 					0 // TODO time
 				);
 
-				// TODO discard packet from buffer
+				// Discard packet from buffer
+				println!("{} {}", buf.len(), pack.size);
+				buf.rotate_left(pack.size);
+				println!("-> {buf_cursor}");
+				buf_cursor -= pack.size;
 
 				receive_count += 1;
 			}
