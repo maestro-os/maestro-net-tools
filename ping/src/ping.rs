@@ -5,7 +5,6 @@ use crate::sock::RawSocket;
 use crate::timer::Timer;
 use std::io;
 use std::io::ErrorKind;
-use std::io::Read;
 use std::num::NonZeroU16;
 use std::ptr::null_mut;
 use std::sync::atomic::AtomicBool;
@@ -108,7 +107,6 @@ impl PingContext {
 		transmit_count += 1;
 
 		let mut buf = vec![0; u16::MAX as usize];
-		let mut buf_cursor = 0;
 
 		loop {
 			// Break if count has been reached
@@ -126,16 +124,16 @@ impl PingContext {
 				transmit_count += 1;
 			}
 
-			let res = self.sock.read(&mut buf[buf_cursor..]);
-			match res {
-				Ok(len) => buf_cursor += len,
+			let res = self.sock.recvfrom(&mut buf);
+			let (len, sockaddr) = match res {
+				Ok(r) => r,
 				// If the timer expired or if pinging has been interrupted
 				Err(e) if e.kind() == ErrorKind::Interrupted => continue,
 				Err(e) => return Err(e),
-			}
+			};
 
 			// Check packet
-			if let Some(pack) = packet::parse(&buf[..buf_cursor]) {
+			if let Some(pack) = packet::parse(&buf[..len]) {
 				// TODO
 				println!(
 					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
@@ -146,12 +144,6 @@ impl PingContext {
 					pack.ttl,
 					0 // TODO time
 				);
-
-				// Discard packet from buffer
-				println!("{} {}", buf.len(), pack.size);
-				buf.rotate_left(pack.size);
-				println!("-> {buf_cursor}");
-				buf_cursor -= pack.size;
 
 				receive_count += 1;
 			}

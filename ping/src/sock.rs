@@ -1,10 +1,11 @@
 //! TODO doc
 
 use std::io;
-use std::io::Read;
-use std::io::Write;
 use std::mem::size_of;
+use std::mem::MaybeUninit;
+use std::net::Ipv4Addr;
 use std::net::SocketAddr;
+use std::net::SocketAddrV4;
 use std::os::fd::AsRawFd;
 
 /// A raw socket, allowing to access the ICMP protocol.
@@ -30,9 +31,31 @@ impl RawSocket {
 	}
 
 	/// TODO doc
-	pub fn recvfrom(&self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
-		// TODO
-		todo!()
+	pub fn recvfrom(&self, buf: &mut [u8]) -> io::Result<(usize, SocketAddr)> {
+		// TODO support IPv6
+		let mut a: libc::sockaddr_in = unsafe { MaybeUninit::uninit().assume_init() };
+		let mut a_len = 0;
+
+		let res = unsafe {
+			libc::recvfrom(
+				self.sock,
+				buf.as_mut_ptr() as *mut _,
+				buf.len(),
+				0,
+				&mut a as *mut _ as *mut _,
+				&mut a_len,
+			)
+		};
+		if res < 0 {
+			return Err(io::Error::last_os_error());
+		}
+
+		let addr = SocketAddr::V4(SocketAddrV4::new(
+			Ipv4Addr::from(a.sin_addr.s_addr),
+			a.sin_port, // TODO ntohs?
+		));
+
+		Ok((res as _, addr))
 	}
 
 	/// TODO doc
@@ -44,7 +67,7 @@ impl RawSocket {
 						s_addr: u32::from_ne_bytes(a.ip().octets()),
 					},
 					sin_family: libc::AF_INET as _,
-					sin_port: addr.port(),
+					sin_port: addr.port(), // TODO htons?
 					sin_zero: [0; 8],
 				};
 
@@ -77,32 +100,5 @@ impl RawSocket {
 impl AsRawFd for RawSocket {
 	fn as_raw_fd(&self) -> i32 {
 		self.sock
-	}
-}
-
-impl Read for RawSocket {
-	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-		let res = unsafe { libc::read(self.sock, buf.as_mut_ptr() as *mut _, buf.len()) };
-		if res < 0 {
-			return Err(io::Error::last_os_error());
-		}
-
-		Ok(res as _)
-	}
-}
-
-impl Write for RawSocket {
-	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-		let res = unsafe { libc::write(self.sock, buf.as_ptr() as *const _, buf.len()) };
-		if res < 0 {
-			return Err(io::Error::last_os_error());
-		}
-
-		Ok(res as _)
-	}
-
-	fn flush(&mut self) -> io::Result<()> {
-		// TODO
-		Ok(())
 	}
 }
