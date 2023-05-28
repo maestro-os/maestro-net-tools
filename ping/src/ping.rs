@@ -3,16 +3,28 @@
 use crate::packet;
 use crate::sock::RawSocket;
 use crate::timer::Timer;
-use signal_hook::consts::{SIGALRM, SIGINT};
 use std::io;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::num::NonZeroU16;
+use std::ptr::null_mut;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
+
+/// Atomic bool telling whether a `SIGALRM` signal has been received.
+static ALARM: AtomicBool = AtomicBool::new(false);
+/// Atomic bool telling whether a `SIGINT` signal has been received.
+static INT: AtomicBool = AtomicBool::new(false);
+
+extern "C" fn alarm_handler() {
+	ALARM.store(true, Ordering::Relaxed);
+}
+
+extern "C" fn int_handler() {
+	INT.store(true, Ordering::Relaxed);
+}
 
 /// A pinging context.
 pub struct PingContext {
@@ -60,10 +72,28 @@ impl PingContext {
 		);
 
 		// Catch signals
-		let alarm = Arc::new(AtomicBool::new(false));
-		let int = Arc::new(AtomicBool::new(false));
-		signal_hook::flag::register(SIGALRM, Arc::clone(&alarm)).unwrap();
-		signal_hook::flag::register(SIGINT, Arc::clone(&int)).unwrap();
+		unsafe {
+			libc::sigaction(
+				libc::SIGALRM,
+				&libc::sigaction {
+					sa_sigaction: alarm_handler as _,
+					sa_mask: std::mem::transmute::<_, _>([0u32; 32]),
+					sa_flags: 0,
+					sa_restorer: None,
+				},
+				null_mut::<_>(),
+			);
+			libc::sigaction(
+				libc::SIGINT,
+				&libc::sigaction {
+					sa_sigaction: int_handler as _,
+					sa_mask: std::mem::transmute::<_, _>([0u32; 32]),
+					sa_flags: 0,
+					sa_restorer: None,
+				},
+				null_mut::<_>(),
+			);
+		}
 
 		// Start timer
 		let _timer = Timer::new(self.interval);
@@ -83,20 +113,24 @@ impl PingContext {
 		loop {
 			// Break if count has been reached
 			let cont = self.count.map(|c| receive_count < c.get()).unwrap_or(true);
-			if int.load(Ordering::Relaxed) || !cont {
+			if INT.load(Ordering::Relaxed) || !cont {
 				break;
 			}
 
+			println!("A");
+
 			// Send signal if interval has been reached
-			if alarm.load(Ordering::Relaxed) {
+			if ALARM.load(Ordering::Relaxed) {
+				println!("B");
 				// Reset timer
-				alarm.store(false, Ordering::Relaxed);
+				ALARM.store(false, Ordering::Relaxed);
 
 				self.send_packet(transmit_count)?;
 				transmit_count += 1;
 			}
 
-			// Receive packet
+			println!("C");
+
 			let res = self.sock.read(&mut buf[buf_cursor..]);
 			match res {
 				Ok(len) => buf_cursor += len,
@@ -104,6 +138,8 @@ impl PingContext {
 				Err(e) if e.kind() == ErrorKind::Interrupted => continue,
 				Err(e) => return Err(e),
 			}
+
+			println!("D");
 
 			// Check packet
 			if let Some(pack) = packet::parse(&buf) {

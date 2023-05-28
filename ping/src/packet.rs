@@ -45,6 +45,7 @@ fn compute_rfc1071(data: &[u8]) -> u16 {
 ///
 /// For more informations, see RFC 792.
 #[repr(C, packed)]
+#[derive(Debug)]
 struct ICMPv4Header {
 	/// The version of the header with the IHL (header length).
 	version_ihl: u8,
@@ -173,6 +174,17 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 		return None;
 	}
 
-	// TODO
-	todo!()
+	let hdr = unsafe { &*(buf.as_ptr() as *const ICMPv4Header) };
+	println!("{:?}", hdr);
+
+	// TODO check if this is a ping reply, else discard
+
+	Some(ReplyInfo {
+		size: hdr.total_length as usize * 4,
+		payload_size: 0, // TODO
+		src_addr: IpAddr::V4(hdr.src_addr.into()),
+
+		seq: hdr.seq,
+		ttl: hdr.ttl,
+	})
 }
