@@ -5,8 +5,10 @@ use crate::sock::RawSocket;
 use crate::timer::Timer;
 use std::io;
 use std::io::ErrorKind;
+use std::net::IpAddr;
 use std::num::NonZeroU16;
 use std::ptr::null_mut;
+use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -55,8 +57,8 @@ impl PingContext {
 	/// Sends a packet.
 	///
 	/// `seq` is the sequence number of the packet to send.
-	fn send_packet(&mut self, seq: u16) -> io::Result<()> {
-		packet::write_ping(&mut self.sock, seq, self.ttl, self.packet_size)?;
+	fn send_packet(&mut self, addr: &IpAddr, seq: u16) -> io::Result<()> {
+		packet::write_ping(&mut self.sock, addr, seq, self.ttl, self.packet_size)?;
 		Ok(())
 	}
 
@@ -64,7 +66,8 @@ impl PingContext {
 	///
 	/// The function returns when pinging is over.
 	pub fn ping(&mut self) -> io::Result<()> {
-		let addr = "TODO"; // TODO resolve dns
+		// TODO resolve hostname
+		let addr = IpAddr::from_str(&self.dest).unwrap(); // TODO handle error
 		println!(
 			"PING {} ({}) {} data bytes",
 			self.dest, addr, self.packet_size
@@ -103,7 +106,7 @@ impl PingContext {
 		let mut receive_count: u16 = 0;
 
 		// Send first packet
-		self.send_packet(transmit_count)?;
+		self.send_packet(&addr, transmit_count)?;
 		transmit_count += 1;
 
 		let mut buf = vec![0; u16::MAX as usize];
@@ -120,7 +123,7 @@ impl PingContext {
 				// Reset timer
 				ALARM.store(false, Ordering::Relaxed);
 
-				self.send_packet(transmit_count)?;
+				self.send_packet(&addr, transmit_count)?;
 				transmit_count += 1;
 			}
 
@@ -138,7 +141,7 @@ impl PingContext {
 				println!(
 					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
 					pack.payload_size,
-					pack.src_addr,
+					sockaddr,
 					"TODO", // TODO
 					pack.seq,
 					pack.ttl,

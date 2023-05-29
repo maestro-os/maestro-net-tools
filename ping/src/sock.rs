@@ -59,7 +59,7 @@ impl RawSocket {
 	}
 
 	/// TODO doc
-	pub fn sendto(&self, buf: &[u8], addr: SocketAddr) -> io::Result<usize> {
+	pub fn sendto(&self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
 		let res = match addr {
 			SocketAddr::V4(a) => {
 				let addr = libc::sockaddr_in {
@@ -83,7 +83,7 @@ impl RawSocket {
 				}
 			}
 
-			SocketAddr::V6(a) => {
+			SocketAddr::V6(_a) => {
 				// TODO
 				todo!()
 			}

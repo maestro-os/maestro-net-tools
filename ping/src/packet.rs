@@ -4,9 +4,7 @@ use crate::sock::RawSocket;
 use std::io;
 use std::mem::size_of;
 use std::net::IpAddr;
-use std::net::Ipv4Addr;
 use std::net::SocketAddr;
-use std::net::SocketAddrV4;
 use std::slice;
 
 // TODO support IPv6
@@ -90,62 +88,84 @@ struct ICMPv4Header {
 ///
 /// Arguments:
 /// - `stream` is the stream to write to.
+/// - `addr` is the destination address.
 /// - `seq` is the sequence number.
 /// - `ttl` is the Time to Live.
 /// - `size` is the size of the packet's payload.
-pub fn write_ping(stream: &mut RawSocket, seq: u16, ttl: u8, size: usize) -> io::Result<()> {
-	let mut hdr = ICMPv4Header {
-		version_ihl: 4 | ((20 / 4) << 4) as u8,
-		type_of_service: 0,
-		total_length: (20 + size) as _,
+pub fn write_ping(
+	stream: &mut RawSocket,
+	addr: &IpAddr,
+	seq: u16,
+	ttl: u8,
+	size: usize,
+) -> io::Result<()> {
+	let buf = match addr {
+		IpAddr::V4(a) => {
+			let mut hdr = ICMPv4Header {
+				version_ihl: 4 | ((20 / 4) << 4) as u8,
+				type_of_service: 0,
+				total_length: (20 + size) as _,
 
-		identification: 0,
-		flags_fragment_offset: 0,
+				identification: 0,
+				flags_fragment_offset: 0,
 
-		ttl,
-		protocol: 1,
-		hdr_checksum: 0,
+				ttl,
+				protocol: 1,
+				hdr_checksum: 0,
 
-		src_addr: [0; 4],         // INADDR_ANY
-		dst_addr: [127, 0, 0, 1], // TODO
+				src_addr: [0; 4], // INADDR_ANY
+				dst_addr: a.octets(),
 
-		r#type: 8, // 8 = echo message
-		code: 0,
-		checksum: 0,
+				r#type: 8, // 8 = echo message
+				code: 0,
+				checksum: 0,
 
-		identifier: 0,
-		seq,
+				identifier: 0,
+				seq,
+			};
+
+			// Compute header checksums
+			let hdr_buf = unsafe {
+				slice::from_raw_parts::<u8>(
+					&hdr as *const _ as *const _,
+					size_of::<ICMPv4Header>(),
+				)
+			};
+			let chk = compute_rfc1071(&hdr_buf[..20]);
+			hdr.hdr_checksum = chk;
+			let hdr_buf = unsafe {
+				slice::from_raw_parts::<u8>(
+					&hdr as *const _ as *const _,
+					size_of::<ICMPv4Header>(),
+				)
+			};
+			let chk = compute_rfc1071(&hdr_buf[20..]);
+			hdr.checksum = chk;
+			println!("send: {hdr:?}");
+
+			let mut buf = vec![0; size_of::<ICMPv4Header>() + size + 2];
+			// Set protocol to IPv4
+			buf[0] = 0x08;
+
+			// Write header
+			let hdr_buf = unsafe {
+				slice::from_raw_parts::<u8>(
+					&hdr as *const _ as *const _,
+					size_of::<ICMPv4Header>(),
+				)
+			};
+			buf[2..(hdr_buf.len() + 2)].copy_from_slice(hdr_buf);
+
+			// Write payload
+			// TODO
+
+			buf
+		}
+
+		IpAddr::V6(_) => todo!(), // TODO
 	};
 
-	// Compute header checksums
-	let hdr_buf = unsafe {
-		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
-	};
-	let chk = compute_rfc1071(&hdr_buf[..20]);
-	hdr.hdr_checksum = chk;
-	let hdr_buf = unsafe {
-		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
-	};
-	let chk = compute_rfc1071(&hdr_buf[20..]);
-	hdr.checksum = chk;
-
-	let mut buf = vec![0; size_of::<ICMPv4Header>() + size + 2];
-	// Set protocol to IPv4
-	buf[0] = 0x08;
-
-	// Write header
-	let hdr_buf = unsafe {
-		slice::from_raw_parts::<u8>(&hdr as *const _ as *const _, size_of::<ICMPv4Header>())
-	};
-	buf[2..(hdr_buf.len() + 2)].copy_from_slice(hdr_buf);
-
-	// Write payload
-	// TODO
-
-	stream.sendto(
-		&buf,
-		SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 0)),
-	)?;
+	stream.sendto(&buf, &SocketAddr::new(*addr, 0))?;
 	Ok(())
 }
 
