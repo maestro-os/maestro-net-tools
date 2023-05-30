@@ -102,29 +102,29 @@ pub fn write_ping(
 	let buf = match addr {
 		IpAddr::V4(a) => {
 			let mut hdr = ICMPv4Header {
-				version_ihl: 4 | ((20 / 4) << 4) as u8,
+				version_ihl: ((4 << 4) | (20 / 4) as u8).to_be(),
 				type_of_service: 0,
-				total_length: (20 + size) as _,
+				total_length: ((20 + size) as u16).to_be(),
 
 				identification: 0,
-				flags_fragment_offset: 0,
+				flags_fragment_offset: 0x40, // do not fragment
 
 				ttl,
-				protocol: 1,
+				protocol: 1u8.to_be(),
 				hdr_checksum: 0,
 
 				src_addr: [0; 4], // INADDR_ANY
 				dst_addr: a.octets(),
 
-				r#type: 8, // 8 = echo message
+				r#type: 8u8.to_be(), // 8 = echo message
 				code: 0,
 				checksum: 0,
 
 				identifier: 0,
-				seq,
+				seq: seq.to_be(),
 			};
 
-			// Compute header checksums
+			// Compute header checksum
 			let hdr_buf = unsafe {
 				slice::from_raw_parts::<u8>(
 					&hdr as *const _ as *const _,
@@ -133,19 +133,8 @@ pub fn write_ping(
 			};
 			let chk = compute_rfc1071(&hdr_buf[..20]);
 			hdr.hdr_checksum = chk;
-			let hdr_buf = unsafe {
-				slice::from_raw_parts::<u8>(
-					&hdr as *const _ as *const _,
-					size_of::<ICMPv4Header>(),
-				)
-			};
-			let chk = compute_rfc1071(&hdr_buf[20..]);
-			hdr.checksum = chk;
-			println!("send: {hdr:?}");
 
-			let mut buf = vec![0; size_of::<ICMPv4Header>() + size + 2];
-			// Set protocol to IPv4
-			buf[0] = 0x08;
+			let mut buf: Vec<u8> = vec![0; size_of::<ICMPv4Header>() + size];
 
 			// Write header
 			let hdr_buf = unsafe {
@@ -154,10 +143,28 @@ pub fn write_ping(
 					size_of::<ICMPv4Header>(),
 				)
 			};
-			buf[2..(hdr_buf.len() + 2)].copy_from_slice(hdr_buf);
+			buf[..hdr_buf.len()].copy_from_slice(hdr_buf);
+			println!("send: {hdr:?}");
+			println!("buf: {buf:x?}");
 
 			// Write payload
 			// TODO
+			buf[hdr_buf.len()..].fill(1);
+
+			// Compute ICMP checksum
+			let chk = compute_rfc1071(&buf[20..]);
+			hdr.checksum = chk;
+			let a = hdr.checksum;
+			println!("a: {:x}", a);
+
+			// Update header to add checksum
+			let hdr_buf = unsafe {
+				slice::from_raw_parts::<u8>(
+					&hdr as *const _ as *const _,
+					size_of::<ICMPv4Header>(),
+				)
+			};
+			buf[..hdr_buf.len()].copy_from_slice(hdr_buf);
 
 			buf
 		}

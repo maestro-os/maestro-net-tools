@@ -58,6 +58,7 @@ impl PingContext {
 	///
 	/// `seq` is the sequence number of the packet to send.
 	fn send_packet(&mut self, addr: &IpAddr, seq: u16) -> io::Result<()> {
+		// TODO network unreachable -> print error but do not stop
 		packet::write_ping(&mut self.sock, addr, seq, self.ttl, self.packet_size)?;
 		Ok(())
 	}
@@ -128,7 +129,7 @@ impl PingContext {
 			}
 
 			let res = self.sock.recvfrom(&mut buf);
-			let (len, sockaddr) = match res {
+			let len = match res {
 				Ok(r) => r,
 				// If the timer expired or if pinging has been interrupted
 				Err(e) if e.kind() == ErrorKind::Interrupted => continue,
@@ -141,7 +142,7 @@ impl PingContext {
 				println!(
 					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
 					pack.payload_size,
-					sockaddr,
+					pack.src_addr,
 					"TODO", // TODO
 					pack.seq,
 					pack.ttl,
