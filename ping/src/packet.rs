@@ -104,7 +104,7 @@ pub fn write_ping(
 			let mut hdr = ICMPv4Header {
 				version_ihl: ((4 << 4) | (20 / 4) as u8).to_be(),
 				type_of_service: 0,
-				total_length: ((20 + size) as u16).to_be(),
+				total_length: ((size_of::<ICMPv4Header>() + size) as u16).to_be(),
 
 				identification: 0,
 				flags_fragment_offset: 0x40, // do not fragment
@@ -120,7 +120,7 @@ pub fn write_ping(
 				code: 0,
 				checksum: 0,
 
-				identifier: 0,
+				identifier: 1u16.to_be(),
 				seq: seq.to_be(),
 			};
 
@@ -149,7 +149,9 @@ pub fn write_ping(
 
 			// Write payload
 			// TODO
-			buf[hdr_buf.len()..].fill(1);
+			for (i, b) in buf[hdr_buf.len()..].iter_mut().enumerate() {
+				*b = i as _;
+			}
 
 			// Compute ICMP checksum
 			let chk = compute_rfc1071(&buf[20..]);
