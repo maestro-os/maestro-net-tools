@@ -96,7 +96,7 @@ pub fn write_ping(
 			}
 
 			// Compute ICMP checksum
-			let chk = compute_rfc1071(&buf[20..]);
+			let chk = compute_rfc1071(&buf);
 			hdr.checksum = chk;
 
 			// Update header to add checksum
@@ -142,8 +142,11 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 	if hdr.r#type != 0 || hdr.code != 0 {
 		return None;
 	}
+	// Check checksum
+	if compute_rfc1071(buf) != 0 {
+		return None;
+	}
 
-	// TODO check payload checksum
 	// TODO check payload content
 
 	Some(ReplyInfo {
