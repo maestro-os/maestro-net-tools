@@ -3,6 +3,8 @@
 use crate::packet;
 use crate::sock::IcmpSocket;
 use crate::timer::Timer;
+use std::cmp::max;
+use std::cmp::min;
 use std::io;
 use std::io::ErrorKind;
 use std::net::IpAddr;
@@ -58,9 +60,11 @@ impl PingContext {
 	///
 	/// `seq` is the sequence number of the packet to send.
 	fn send_packet(&mut self, addr: &IpAddr, seq: u16) -> io::Result<()> {
-		// TODO network unreachable -> print error but do not stop
-		packet::write_ping(&mut self.sock, addr, seq, self.packet_size)?;
-		Ok(())
+		let res = packet::write_ping(&mut self.sock, addr, seq, self.packet_size);
+		match res {
+			Err(e) if matches!(e.kind(), io::ErrorKind::NetworkUnreachable) => Ok(()),
+			r @ _ => r,
+		}
 	}
 
 	/// Pings using the current context.
@@ -98,13 +102,21 @@ impl PingContext {
 			);
 		}
 
-		// Start timer
+		// Timing
 		let _timer = Timer::new(self.interval);
-
 		let start = Instant::now();
 
+		// Stats
 		let mut transmit_count: u16 = 0;
 		let mut receive_count: u16 = 0;
+		// The minimum reply delay
+		let mut min_delta = u128::MAX;
+		// The maximum reply delay
+		let mut max_delta = 0;
+		// The sum of reply delays
+		let mut sum_delta = 0;
+		// The sum of squared reply delays
+		let mut sum_squared_delta = 0;
 
 		// Send first packet
 		self.send_packet(&addr, transmit_count)?;
@@ -128,7 +140,7 @@ impl PingContext {
 				transmit_count += 1;
 			}
 
-			let res = self.sock.recvfrom(&mut buf);
+			let res = self.sock.recvmsg(&mut buf);
 			let len = match res {
 				Ok(r) => r,
 				// If the timer expired or if pinging has been interrupted
@@ -138,18 +150,24 @@ impl PingContext {
 
 			// Check packet
 			if let Some(pack) = packet::parse(&buf[..len]) {
-				// TODO
+				let transmit_ts = start + self.interval * pack.seq as _;
+				let delta = Instant::now().duration_since(transmit_ts).as_millis();
+
 				println!(
-					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
+					"{} bytes from {} ({}): icmp_seq={} ttl={} time={} ms",
 					pack.payload_size,
 					"TODO", // TODO source addr
 					"TODO", // TODO
 					pack.seq,
 					0, // TODO ttl
-					0  // TODO time
+					delta
 				);
 
 				receive_count += 1;
+				min_delta = min(min_delta, delta);
+				max_delta = max(max_delta, delta);
+				sum_delta += delta;
+				sum_squared_delta += delta * delta;
 			}
 		}
 
@@ -171,8 +189,13 @@ impl PingContext {
 			loss_percentage,
 			elapsed.as_millis()
 		);
-		// TODO end:
-		// println!("rtt min/avg/max/mdev = {}/{}/{}/{} ms");
+		println!(
+			"rtt min/avg/max/mdev = {}/{}/{}/{} ms",
+			min_delta as f32,
+			sum_delta as f32 / receive_count as f32,
+			max_delta as f32,
+			(sum_squared_delta as f32 / receive_count as f32).sqrt(),
+		);
 
 		Ok(())
 	}

@@ -145,10 +145,6 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 	let hdr = unsafe { &*(buf.as_ptr() as *const ICMPv4Header) };
 	println!("{:?}", hdr);
 
-	// TODO check hdr size
-	// TODO check type of service/protocol
-	// TODO check checksum
-
 	// Check if this is a ping reply, else discard
 	if hdr.r#type != 0 || hdr.code != 0 {
 		// TODO discard
@@ -160,6 +156,6 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 	Some(ReplyInfo {
 		payload_size: 0, // TODO
 
-		seq: hdr.seq,
+		seq: u16::from_be(hdr.seq),
 	})
 }

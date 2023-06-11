@@ -2,9 +2,9 @@
 
 use std::io;
 use std::mem::size_of;
-use std::mem::MaybeUninit;
 use std::net::SocketAddr;
 use std::os::fd::AsRawFd;
+use std::ptr::null_mut;
 
 // TODO allow setting TTL for sent packets
 
@@ -32,21 +32,22 @@ impl IcmpSocket {
 	}
 
 	/// Receives a packet.
-	pub fn recvfrom(&self, buf: &mut [u8]) -> io::Result<usize> {
+	pub fn recvmsg(&self, buf: &mut [u8]) -> io::Result<usize> {
 		// TODO support IPv6
-		let mut a: libc::sockaddr_in = unsafe { MaybeUninit::uninit().assume_init() };
-		let mut a_len = 0;
-
-		let res = unsafe {
-			libc::recvfrom(
-				self.sock,
-				buf.as_mut_ptr() as *mut _,
-				buf.len(),
-				0,
-				&mut a as *mut _ as *mut _,
-				&mut a_len,
-			)
+		let mut msghdr = libc::msghdr {
+			msg_name: null_mut::<_>(),
+			msg_namelen: 0,
+			msg_iov: &mut libc::iovec {
+				iov_base: buf.as_mut_ptr() as _,
+				iov_len: buf.len(),
+			},
+			msg_iovlen: 1,
+			msg_control: null_mut::<_>(), // TODO
+			msg_controllen: 0,            // TODO
+			msg_flags: 0,                 // TODO
 		};
+
+		let res = unsafe { libc::recvmsg(self.sock, &mut msghdr, 0) };
 		if res < 0 {
 			return Err(io::Error::last_os_error());
 		}
