@@ -4,7 +4,6 @@ use std::io;
 use std::mem::size_of;
 use std::net::SocketAddr;
 use std::os::fd::AsRawFd;
-use std::ptr::null_mut;
 
 // TODO allow setting TTL for sent packets
 
@@ -21,30 +20,64 @@ impl IcmpSocket {
 	/// error.
 	pub fn new() -> io::Result<Self> {
 		// TODO add support for IPv6
+
+		// Create socket
 		let res = unsafe { libc::socket(libc::AF_INET, libc::SOCK_DGRAM, libc::IPPROTO_ICMP) };
 		if res < 0 {
 			return Err(io::Error::last_os_error());
 		}
 
+		// Enable TTL retrieve
+		let sock = res;
+		let res = unsafe {
+			libc::setsockopt(
+				sock,
+				libc::SOL_IP,
+				libc::IP_RECVTTL,
+				&1u32 as *const _ as _,
+				size_of::<u32>() as _,
+			)
+		};
+		if res < 0 {
+			return Err(io::Error::last_os_error());
+		}
+
 		Ok(Self {
-			sock: res,
+			sock,
 		})
 	}
 
 	/// Receives a packet.
-	pub fn recvmsg(&self, buf: &mut [u8]) -> io::Result<usize> {
+	///
+	/// The function returns a tuple containing:
+	/// - The length of the received message
+	/// - The packet's TTL
+	pub fn recvmsg(&self, buf: &mut [u8], addr: &SocketAddr) -> io::Result<(usize, u8)> {
 		// TODO support IPv6
-		let mut msghdr = libc::msghdr {
-			msg_name: null_mut::<_>(),
-			msg_namelen: 0,
-			msg_iov: &mut libc::iovec {
-				iov_base: buf.as_mut_ptr() as _,
-				iov_len: buf.len(),
+
+		let mut ctrl_buf: [u8; 1024] = [0; 1024];
+		let mut msghdr = match addr {
+			SocketAddr::V4(a) => libc::msghdr {
+				msg_name: &libc::sockaddr_in {
+					sin_family: libc::AF_INET as _,
+					sin_port: 0,
+					sin_addr: libc::in_addr {
+						s_addr: u32::from_le_bytes(a.ip().octets()),
+					},
+					sin_zero: [0; 8],
+				} as *const _ as _,
+				msg_namelen: size_of::<libc::sockaddr_in>() as _,
+				msg_iov: &mut libc::iovec {
+					iov_base: buf.as_mut_ptr() as _,
+					iov_len: buf.len(),
+				},
+				msg_iovlen: 1,
+				msg_control: ctrl_buf.as_mut_ptr() as _,
+				msg_controllen: ctrl_buf.len(),
+				msg_flags: 0,
 			},
-			msg_iovlen: 1,
-			msg_control: null_mut::<_>(), // TODO
-			msg_controllen: 0,            // TODO
-			msg_flags: 0,                 // TODO
+
+			SocketAddr::V6(_a) => todo!(), // TODO
 		};
 
 		let res = unsafe { libc::recvmsg(self.sock, &mut msghdr, 0) };
@@ -52,7 +85,12 @@ impl IcmpSocket {
 			return Err(io::Error::last_os_error());
 		}
 
-		Ok(res as _)
+		// Get TTL from control
+		let _chdr = unsafe { ctrl_buf.as_ptr() as *const libc::cmsghdr };
+		// TODO make safer by check the size of received data and the level/type of the hdr
+		let ttl = ctrl_buf[size_of::<libc::cmsghdr>()];
+
+		Ok((res as _, ttl))
 	}
 
 	/// Sends a packet.
@@ -77,7 +115,7 @@ impl IcmpSocket {
 				buf.len(),
 				0,
 				&addr as *const _ as *const _,
-				size_of::<libc::sockaddr_ll>() as _,
+				size_of::<libc::sockaddr_in>() as _,
 			)
 		};
 
