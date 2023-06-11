@@ -18,7 +18,7 @@ impl IcmpSocket {
 	///
 	/// If the process doesn't have the permission to open a raw socket, the function returns an
 	/// error.
-	pub fn new() -> io::Result<Self> {
+	pub fn new(allow_broadcast: bool) -> io::Result<Self> {
 		// TODO add support for IPv6
 
 		// Create socket
@@ -26,9 +26,25 @@ impl IcmpSocket {
 		if res < 0 {
 			return Err(io::Error::last_os_error());
 		}
+		let sock = res;
+
+		// Enable broadcast if requested
+		if allow_broadcast {
+			let res = unsafe {
+				libc::setsockopt(
+					sock,
+					libc::SOL_SOCKET,
+					libc::SO_BROADCAST,
+					&1u32 as *const _ as _,
+					size_of::<u32>() as _,
+				)
+			};
+			if res < 0 {
+				return Err(io::Error::last_os_error());
+			}
+		}
 
 		// Enable TTL retrieve
-		let sock = res;
 		let res = unsafe {
 			libc::setsockopt(
 				sock,
@@ -86,8 +102,8 @@ impl IcmpSocket {
 		}
 
 		// Get TTL from control
-		let _chdr = unsafe { ctrl_buf.as_ptr() as *const libc::cmsghdr };
-		// TODO make safer by check the size of received data and the level/type of the hdr
+		let _chdr = unsafe { &*(ctrl_buf.as_ptr() as *const libc::cmsghdr) };
+		// TODO make safer by checking msg_controllen and the level/type of the hdr
 		let ttl = ctrl_buf[size_of::<libc::cmsghdr>()];
 
 		Ok((res as _, ttl))

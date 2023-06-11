@@ -202,7 +202,7 @@ fn parse_args() -> Args {
 fn main() {
 	let args = parse_args();
 
-	let sock = IcmpSocket::new().unwrap_or_else(|e| {
+	let sock = IcmpSocket::new(args.allow_broadcast).unwrap_or_else(|e| {
 		eprintln!("ping: cannot open socket: {}", e);
 		exit(1);
 	});

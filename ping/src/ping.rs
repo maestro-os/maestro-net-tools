@@ -10,6 +10,7 @@ use std::io::ErrorKind;
 use std::net::IpAddr;
 use std::net::SocketAddr;
 use std::num::NonZeroU16;
+use std::process::exit;
 use std::ptr::null_mut;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
@@ -74,10 +75,6 @@ impl PingContext {
 	pub fn ping(&mut self) -> io::Result<()> {
 		// TODO resolve hostname
 		let addr = IpAddr::from_str(&self.dest).unwrap(); // TODO handle error
-		println!(
-			"PING {} ({}) {} data bytes",
-			self.dest, addr, self.packet_size
-		);
 
 		// Catch signals
 		unsafe {
@@ -120,10 +117,23 @@ impl PingContext {
 		let mut sum_squared_delta = 0;
 
 		// Send first packet
-		self.send_packet(&addr, transmit_count)?;
+		let res = self.send_packet(&addr, transmit_count);
+		match res {
+			Err(e) if matches!(e.kind(), io::ErrorKind::PermissionDenied) => {
+				eprintln!("ping: If you want to ping broadcast, use argument -b. If not, check your local firewall rules");
+				exit(1);
+			}
+
+			r @ _ => r?,
+		}
 		transmit_count += 1;
 
 		let mut buf = vec![0; u16::MAX as usize];
+
+		println!(
+			"PING {} ({}) {} data bytes",
+			self.dest, addr, self.packet_size
+		);
 
 		loop {
 			// Break if count has been reached
@@ -155,10 +165,9 @@ impl PingContext {
 				let delta = Instant::now().duration_since(transmit_ts).as_millis();
 
 				println!(
-					"{} bytes from {} ({}): icmp_seq={} ttl={} time={} ms",
+					"{} bytes from {}: icmp_seq={} ttl={} time={} ms",
 					pack.payload_size,
 					"TODO", // TODO source addr
-					"TODO", // TODO
 					pack.seq,
 					ttl,
 					delta
@@ -184,7 +193,7 @@ impl PingContext {
 		println!();
 		println!("--- {} ping statistics ---", self.dest);
 		println!(
-			"{} packets transmitted, {} received, {}% packet loss, time {}ms",
+			"{} packets transmitted, {} received, {}% packet loss, time {} ms",
 			transmit_count,
 			receive_count,
 			loss_percentage,

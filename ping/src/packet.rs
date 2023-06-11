@@ -89,8 +89,6 @@ pub fn write_ping(
 				)
 			};
 			buf[..hdr_buf.len()].copy_from_slice(hdr_buf);
-			println!("send: {hdr:?}");
-			println!("buf: {buf:x?}");
 
 			// Write payload
 			// TODO
@@ -101,8 +99,6 @@ pub fn write_ping(
 			// Compute ICMP checksum
 			let chk = compute_rfc1071(&buf[20..]);
 			hdr.checksum = chk;
-			let a = hdr.checksum;
-			println!("a: {:x}", a);
 
 			// Update header to add checksum
 			let hdr_buf = unsafe {
@@ -125,11 +121,10 @@ pub fn write_ping(
 
 /// Informations about a packet reply.
 pub struct ReplyInfo {
-	/// The size of the payload in bytes.
-	pub payload_size: usize,
-
 	/// The sequence number of the reply.
 	pub seq: u16,
+	/// The size of the payload in bytes.
+	pub payload_size: usize,
 }
 
 /// Parses an ICMP packet.
@@ -143,19 +138,17 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 	}
 
 	let hdr = unsafe { &*(buf.as_ptr() as *const ICMPv4Header) };
-	println!("{:?}", hdr);
 
 	// Check if this is a ping reply, else discard
 	if hdr.r#type != 0 || hdr.code != 0 {
-		// TODO discard
 		return None;
 	}
+
 	// TODO check payload checksum
+	// TODO check payload content
 
-	// TODO
 	Some(ReplyInfo {
-		payload_size: 0, // TODO
-
 		seq: u16::from_be(hdr.seq),
+		payload_size: buf.len() - size_of::<ICMPv4Header>(),
 	})
 }
