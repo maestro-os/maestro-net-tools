@@ -1,7 +1,7 @@
 //! This module implements pinging.
 
 use crate::packet;
-use crate::sock::RawSocket;
+use crate::sock::IcmpSocket;
 use crate::timer::Timer;
 use std::io;
 use std::io::ErrorKind;
@@ -50,7 +50,7 @@ pub struct PingContext {
 	pub dest: String,
 
 	/// The socket.
-	pub sock: RawSocket,
+	pub sock: IcmpSocket,
 }
 
 impl PingContext {
@@ -59,7 +59,7 @@ impl PingContext {
 	/// `seq` is the sequence number of the packet to send.
 	fn send_packet(&mut self, addr: &IpAddr, seq: u16) -> io::Result<()> {
 		// TODO network unreachable -> print error but do not stop
-		packet::write_ping(&mut self.sock, addr, seq, self.ttl, self.packet_size)?;
+		packet::write_ping(&mut self.sock, addr, seq, self.packet_size)?;
 		Ok(())
 	}
 
@@ -142,11 +142,11 @@ impl PingContext {
 				println!(
 					"{} bytes from {} ({}): icmp_seq={} ttl={} time={}",
 					pack.payload_size,
-					pack.src_addr,
+					"TODO", // TODO source addr
 					"TODO", // TODO
 					pack.seq,
-					pack.ttl,
-					0 // TODO time
+					0, // TODO ttl
+					0  // TODO time
 				);
 
 				receive_count += 1;

@@ -6,7 +6,7 @@ mod sock;
 mod timer;
 
 use ping::PingContext;
-use sock::RawSocket;
+use sock::IcmpSocket;
 use std::env;
 use std::num::NonZeroU16;
 use std::process::exit;
@@ -200,7 +200,7 @@ fn parse_args() -> Args {
 fn main() {
 	let args = parse_args();
 
-	let sock = RawSocket::new().unwrap_or_else(|e| {
+	let sock = IcmpSocket::new().unwrap_or_else(|e| {
 		eprintln!("ping: cannot open socket: {}", e);
 		exit(1);
 	});

@@ -1,6 +1,6 @@
 //! TODO doc
 
-use crate::sock::RawSocket;
+use crate::sock::IcmpSocket;
 use std::io;
 use std::mem::size_of;
 use std::net::IpAddr;
@@ -35,50 +35,21 @@ fn compute_rfc1071(data: &[u8]) -> u16 {
 
 /// The ICMP header.
 ///
-/// The header is split in two parts:
-/// - The IPv4 header
-/// - The actual ICMP header
-///
 /// The header is followed by data.
 ///
 /// For more informations, see RFC 792.
 #[repr(C, packed)]
 #[derive(Debug)]
 struct ICMPv4Header {
-	/// The version of the header with the IHL (header length).
-	version_ihl: u8,
-	/// The type of service.
-	type_of_service: u8,
-	/// The total length of the datagram.
-	total_length: u16,
-
-	/// TODO doc
-	identification: u16,
-	/// TODO doc
-	flags_fragment_offset: u16,
-
-	/// Time-To-Live.
-	ttl: u8,
-	/// Protocol number.
-	protocol: u8,
-	/// The checksum of the header (RFC 1071).
-	hdr_checksum: u16,
-
-	/// Source address.
-	src_addr: [u8; 4],
-	/// Destination address.
-	dst_addr: [u8; 4],
-
-	// Beginning of the actual ICMP header
-	/// TODO doc
+	/// Packet type
 	r#type: u8,
-	/// TODO doc
+	/// Packet code
 	code: u8,
-	/// TODO doc
+	/// Checksum of the header + data
 	checksum: u16,
 
 	// Beginning of fields specific to Echo and Echo reply messages
-	/// TODO doc
+	/// The identifier of the ping sequence.
 	identifier: u16,
 	/// The sequence number.
 	seq: u16,
@@ -93,29 +64,14 @@ struct ICMPv4Header {
 /// - `ttl` is the Time to Live.
 /// - `size` is the size of the packet's payload.
 pub fn write_ping(
-	stream: &mut RawSocket,
+	stream: &mut IcmpSocket,
 	addr: &IpAddr,
 	seq: u16,
-	ttl: u8,
 	size: usize,
 ) -> io::Result<()> {
 	let buf = match addr {
-		IpAddr::V4(a) => {
+		IpAddr::V4(_) => {
 			let mut hdr = ICMPv4Header {
-				version_ihl: ((4 << 4) | (20 / 4) as u8).to_be(),
-				type_of_service: 0,
-				total_length: ((size_of::<ICMPv4Header>() + size) as u16).to_be(),
-
-				identification: 0,
-				flags_fragment_offset: 0x40, // do not fragment
-
-				ttl,
-				protocol: 1u8.to_be(),
-				hdr_checksum: 0,
-
-				src_addr: [0; 4], // INADDR_ANY
-				dst_addr: a.octets(),
-
 				r#type: 8u8.to_be(), // 8 = echo message
 				code: 0,
 				checksum: 0,
@@ -123,17 +79,6 @@ pub fn write_ping(
 				identifier: 1u16.to_be(),
 				seq: seq.to_be(),
 			};
-
-			// Compute header checksum
-			let hdr_buf = unsafe {
-				slice::from_raw_parts::<u8>(
-					&hdr as *const _ as *const _,
-					size_of::<ICMPv4Header>(),
-				)
-			};
-			let chk = compute_rfc1071(&hdr_buf[..20]);
-			hdr.hdr_checksum = chk;
-
 			let mut buf: Vec<u8> = vec![0; size_of::<ICMPv4Header>() + size];
 
 			// Write header
@@ -180,17 +125,11 @@ pub fn write_ping(
 
 /// Informations about a packet reply.
 pub struct ReplyInfo {
-	/// The size of the entire packet. Used to discard it from the buffer.
-	pub size: usize,
 	/// The size of the payload in bytes.
 	pub payload_size: usize,
-	/// The source IP address.
-	pub src_addr: IpAddr,
 
 	/// The sequence number of the reply.
 	pub seq: u16,
-	/// Time to Live.
-	pub ttl: u8,
 }
 
 /// Parses an ICMP packet.
@@ -215,17 +154,12 @@ pub fn parse(buf: &[u8]) -> Option<ReplyInfo> {
 		// TODO discard
 		return None;
 	}
-	if buf.len() < hdr.total_length as usize {
-		return None;
-	}
 	// TODO check payload checksum
 
+	// TODO
 	Some(ReplyInfo {
-		size: hdr.total_length as usize,
 		payload_size: 0, // TODO
-		src_addr: IpAddr::V4(hdr.src_addr.into()),
 
 		seq: hdr.seq,
-		ttl: hdr.ttl,
 	})
 }
