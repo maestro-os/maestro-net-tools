@@ -2,10 +2,18 @@
 
 use std::io;
 use std::mem::size_of;
-use std::net::SocketAddr;
+use std::net::IpAddr;
 use std::os::fd::AsRawFd;
 
 // TODO allow setting TTL for sent packets
+
+/// Informations about a received packet.
+pub struct RecvInfo {
+	/// The source address.
+	pub src_addr: IpAddr,
+	/// Time-To-Live
+	pub ttl: u8,
+}
 
 /// A socket working with the ICMP protocol.
 pub struct IcmpSocket {
@@ -67,18 +75,18 @@ impl IcmpSocket {
 	///
 	/// The function returns a tuple containing:
 	/// - The length of the received message
-	/// - The packet's TTL
-	pub fn recvmsg(&self, buf: &mut [u8], addr: &SocketAddr) -> io::Result<(usize, u8)> {
+	/// - Informations on the received packet
+	pub fn recvmsg(&self, buf: &mut [u8], addr: &IpAddr) -> io::Result<(usize, RecvInfo)> {
 		// TODO support IPv6
 
 		let mut ctrl_buf: [u8; 1024] = [0; 1024];
 		let mut msghdr = match addr {
-			SocketAddr::V4(a) => libc::msghdr {
+			IpAddr::V4(a) => libc::msghdr {
 				msg_name: &libc::sockaddr_in {
 					sin_family: libc::AF_INET as _,
 					sin_port: 0,
 					sin_addr: libc::in_addr {
-						s_addr: u32::from_le_bytes(a.ip().octets()),
+						s_addr: u32::from_le_bytes(a.octets()),
 					},
 					sin_zero: [0; 8],
 				} as *const _ as _,
@@ -93,7 +101,7 @@ impl IcmpSocket {
 				msg_flags: 0,
 			},
 
-			SocketAddr::V6(_a) => todo!(), // TODO
+			IpAddr::V6(_a) => todo!(), // TODO
 		};
 
 		let res = unsafe { libc::recvmsg(self.sock, &mut msghdr, 0) };
@@ -101,27 +109,37 @@ impl IcmpSocket {
 			return Err(io::Error::last_os_error());
 		}
 
+		// Get source address
+		let name = unsafe { &*(msghdr.msg_name as *const libc::sockaddr_in) };
+		let src_addr = IpAddr::from(name.sin_addr.s_addr.to_ne_bytes());
+
 		// Get TTL from control
 		let _chdr = unsafe { &*(ctrl_buf.as_ptr() as *const libc::cmsghdr) };
 		// TODO make safer by checking msg_controllen and the level/type of the hdr
 		let ttl = ctrl_buf[size_of::<libc::cmsghdr>()];
 
-		Ok((res as _, ttl))
+		Ok((
+			res as _,
+			RecvInfo {
+				src_addr,
+				ttl,
+			},
+		))
 	}
 
 	/// Sends a packet.
-	pub fn sendto(&self, buf: &[u8], addr: &SocketAddr) -> io::Result<usize> {
+	pub fn sendto(&self, buf: &[u8], addr: &IpAddr) -> io::Result<usize> {
 		let addr = match addr {
-			SocketAddr::V4(a) => libc::sockaddr_in {
+			IpAddr::V4(a) => libc::sockaddr_in {
 				sin_family: libc::AF_INET as _,
 				sin_addr: libc::in_addr {
-					s_addr: u32::from_le_bytes(a.ip().octets()),
+					s_addr: u32::from_le_bytes(a.octets()),
 				},
 				sin_port: 0,
 				sin_zero: [0; 8],
 			},
 
-			SocketAddr::V6(_a) => todo!(), // TODO
+			IpAddr::V6(_a) => todo!(), // TODO
 		};
 
 		let res = unsafe {

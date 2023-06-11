@@ -8,7 +8,6 @@ use std::cmp::min;
 use std::io;
 use std::io::ErrorKind;
 use std::net::IpAddr;
-use std::net::SocketAddr;
 use std::num::NonZeroU16;
 use std::process::exit;
 use std::ptr::null_mut;
@@ -151,8 +150,8 @@ impl PingContext {
 				transmit_count += 1;
 			}
 
-			let res = self.sock.recvmsg(&mut buf, &SocketAddr::new(addr, 0));
-			let (len, ttl) = match res {
+			let res = self.sock.recvmsg(&mut buf, &addr);
+			let (len, info) = match res {
 				Ok(r) => r,
 				// If the timer expired or if pinging has been interrupted
 				Err(e) if e.kind() == ErrorKind::Interrupted => continue,
@@ -166,11 +165,7 @@ impl PingContext {
 
 				println!(
 					"{} bytes from {}: icmp_seq={} ttl={} time={} ms",
-					pack.payload_size,
-					"TODO", // TODO source addr
-					pack.seq,
-					ttl,
-					delta
+					pack.payload_size, info.src_addr, pack.seq, info.ttl, delta
 				);
 
 				receive_count += 1;

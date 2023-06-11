@@ -4,7 +4,6 @@ use crate::sock::IcmpSocket;
 use std::io;
 use std::mem::size_of;
 use std::net::IpAddr;
-use std::net::SocketAddr;
 use std::slice;
 
 // TODO support IPv6
@@ -115,7 +114,7 @@ pub fn write_ping(
 		IpAddr::V6(_) => todo!(), // TODO
 	};
 
-	stream.sendto(&buf, &SocketAddr::new(*addr, 0))?;
+	stream.sendto(&buf, addr)?;
 	Ok(())
 }
 
