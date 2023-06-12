@@ -194,13 +194,15 @@ impl PingContext {
 			loss_percentage,
 			elapsed.as_millis()
 		);
-		println!(
-			"rtt min/avg/max/mdev = {}/{}/{}/{} ms",
-			min_delta as f32,
-			sum_delta as f32 / receive_count as f32,
-			max_delta as f32,
-			(sum_squared_delta as f32 / receive_count as f32).sqrt(),
-		);
+		if receive_count > 0 {
+			println!(
+				"rtt min/avg/max/mdev = {}/{}/{}/{} ms",
+				min_delta as f32,
+				sum_delta as f32 / receive_count as f32,
+				max_delta as f32,
+				(sum_squared_delta as f32 / receive_count as f32).sqrt(),
+			);
+		}
 
 		Ok(())
 	}

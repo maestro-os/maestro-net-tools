@@ -80,51 +80,53 @@ impl IcmpSocket {
 		// TODO support IPv6
 
 		let mut ctrl_buf: [u8; 1024] = [0; 1024];
-		let mut msghdr = match addr {
-			IpAddr::V4(a) => libc::msghdr {
-				msg_name: &libc::sockaddr_in {
-					sin_family: libc::AF_INET as _,
-					sin_port: 0,
-					sin_addr: libc::in_addr {
-						s_addr: u32::from_le_bytes(a.octets()),
+		match addr {
+			IpAddr::V4(a) => {
+				let mut msghdr = libc::msghdr {
+					msg_name: &libc::sockaddr_in {
+						sin_family: libc::AF_INET as _,
+						sin_port: 0,
+						sin_addr: libc::in_addr {
+							s_addr: u32::from_le_bytes(a.octets()),
+						},
+						sin_zero: [0; 8],
+					} as *const _ as _,
+					msg_namelen: size_of::<libc::sockaddr_in>() as _,
+					msg_iov: &mut libc::iovec {
+						iov_base: buf.as_mut_ptr() as _,
+						iov_len: buf.len(),
 					},
-					sin_zero: [0; 8],
-				} as *const _ as _,
-				msg_namelen: size_of::<libc::sockaddr_in>() as _,
-				msg_iov: &mut libc::iovec {
-					iov_base: buf.as_mut_ptr() as _,
-					iov_len: buf.len(),
-				},
-				msg_iovlen: 1,
-				msg_control: ctrl_buf.as_mut_ptr() as _,
-				msg_controllen: ctrl_buf.len() as _,
-				msg_flags: 0,
+					msg_iovlen: 1,
+					msg_control: ctrl_buf.as_mut_ptr() as _,
+					msg_controllen: ctrl_buf.len() as _,
+					msg_flags: 0,
+				};
+
+				let res = unsafe { libc::recvmsg(self.sock, &mut msghdr, 0) };
+				if res < 0 {
+					return Err(io::Error::last_os_error());
+				}
+
+				// Get source address
+				let name = unsafe { &*(msghdr.msg_name as *const libc::sockaddr_in) };
+				let src_addr = IpAddr::from(name.sin_addr.s_addr.to_ne_bytes());
+
+				// Get TTL from control
+				let _chdr = unsafe { &*(ctrl_buf.as_ptr() as *const libc::cmsghdr) };
+				// TODO make safer by checking msg_controllen and the level/type of the hdr
+				let ttl = ctrl_buf[size_of::<libc::cmsghdr>()];
+
+				Ok((
+					res as _,
+					RecvInfo {
+						src_addr,
+						ttl,
+					},
+				))
 			},
 
 			IpAddr::V6(_a) => todo!(), // TODO
-		};
-
-		let res = unsafe { libc::recvmsg(self.sock, &mut msghdr, 0) };
-		if res < 0 {
-			return Err(io::Error::last_os_error());
 		}
-
-		// Get source address
-		let name = unsafe { &*(msghdr.msg_name as *const libc::sockaddr_in) };
-		let src_addr = IpAddr::from(name.sin_addr.s_addr.to_ne_bytes());
-
-		// Get TTL from control
-		let _chdr = unsafe { &*(ctrl_buf.as_ptr() as *const libc::cmsghdr) };
-		// TODO make safer by checking msg_controllen and the level/type of the hdr
-		let ttl = ctrl_buf[size_of::<libc::cmsghdr>()];
-
-		Ok((
-			res as _,
-			RecvInfo {
-				src_addr,
-				ttl,
-			},
-		))
 	}
 
 	/// Sends a packet.
