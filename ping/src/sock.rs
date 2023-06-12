@@ -97,7 +97,7 @@ impl IcmpSocket {
 				},
 				msg_iovlen: 1,
 				msg_control: ctrl_buf.as_mut_ptr() as _,
-				msg_controllen: ctrl_buf.len(),
+				msg_controllen: ctrl_buf.len() as _,
 				msg_flags: 0,
 			},
 
