@@ -2,6 +2,7 @@
 
 #![feature(io_error_more)]
 
+mod addr;
 mod packet;
 mod ping;
 mod sock;

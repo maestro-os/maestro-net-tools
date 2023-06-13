@@ -123,7 +123,7 @@ impl IcmpSocket {
 						ttl,
 					},
 				))
-			},
+			}
 
 			IpAddr::V6(_a) => todo!(), // TODO
 		}

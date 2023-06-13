@@ -1,5 +1,6 @@
 //! This module implements pinging.
 
+use crate::addr;
 use crate::packet;
 use crate::sock::IcmpSocket;
 use crate::timer::Timer;
@@ -11,7 +12,6 @@ use std::net::IpAddr;
 use std::num::NonZeroU16;
 use std::process::exit;
 use std::ptr::null_mut;
-use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -72,8 +72,7 @@ impl PingContext {
 	///
 	/// The function returns when pinging is over.
 	pub fn ping(&mut self) -> io::Result<()> {
-		// TODO resolve hostname
-		let addr = IpAddr::from_str(&self.dest).unwrap(); // TODO handle error
+		let addr = addr::parse(&self.dest)?;
 
 		// Catch signals
 		unsafe {
