@@ -15,9 +15,6 @@ use std::num::NonZeroU16;
 use std::process::exit;
 use std::time::Duration;
 
-/// The program's version
-const VERSION: &str = "0.1";
-
 /// Structure storing arguments.
 struct Args {
 	/// The number of packets to send.
@@ -91,7 +88,9 @@ fn print_usage(bin: &str) {
 /// Parses command line arguments.
 fn parse_args() -> Args {
 	let mut iter = env::args();
-	let bin = iter.next().unwrap_or_else(|| "ping".to_owned());
+	let bin = iter
+		.next()
+		.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
 
 	let mut args = Args::default();
 
@@ -175,7 +174,11 @@ fn parse_args() -> Args {
 			}
 
 			"-V" => {
-				println!("ping (maestro-net-tools) version {VERSION}");
+				println!(
+					"{} (maestro-net-tools) version {}",
+					env!("CARGO_PKG_NAME"),
+					env!("CARGO_PKG_VERSION")
+				);
 				exit(0);
 			}
 
