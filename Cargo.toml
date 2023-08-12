@@ -2,6 +2,7 @@
 
 members = [
 	"ip",
+	"netlink",
 	"ping"
 ]
 
