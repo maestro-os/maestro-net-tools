@@ -1,7 +1,10 @@
 //! The `ip` command allows to manipulate routing, network devices and interfaces.
 
+pub mod link;
+
 use std::env;
 use std::env::Args;
+use std::iter::Peekable;
 use std::process::exit;
 
 /// Prints the command usage.
@@ -11,7 +14,7 @@ fn print_help(bin: &str) {
 	eprintln!("ip command version {}", env!("CARGO_PKG_VERSION"));
 	eprintln!();
 	eprintln!("Usage:");
-	eprintln!("  {bin} [options] <object> <command>");
+	eprintln!("  {bin} [options] <object> [command]");
 	eprintln!();
 	eprintln!("Options:");
 	eprintln!("  -v, -V: show command version");
@@ -28,9 +31,8 @@ struct Options {
 }
 
 /// Parses options from command line arguments.
-fn parse_options(iter: &mut Args) -> Option<Options> {
+fn parse_options(iter: &mut Peekable<Args>) -> Option<Options> {
 	let mut options = Options::default();
-	let mut iter = iter.peekable();
 
 	loop {
 		let Some(s) = iter.peek() else {
@@ -55,7 +57,7 @@ fn parse_options(iter: &mut Args) -> Option<Options> {
 }
 
 fn main() {
-	let mut iter = env::args();
+	let mut iter = env::args().peekable();
 	let bin = iter
 		.next()
 		.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
@@ -64,20 +66,31 @@ fn main() {
 		print_help(&bin);
 		exit(1);
 	};
+	if options.version {
+		eprintln!("ip command version {}", env!("CARGO_PKG_VERSION"));
+		exit(0);
+	}
+
 	let Some(object) = iter.next() else {
 		print_help(&bin);
 		exit(1);
 	};
+	println!("jdsljflksd");
 
-	match object.as_str() {
-		o @ _ if "address".starts_with(o) => {
-			// TODO
-			todo!()
-		}
-
+	let res = match object.as_str() {
+		o @ _ if "address".starts_with(o) => link::handle_cmd(iter),
 		o @ _ => {
 			eprintln!("invalid command `{o}`");
+			Ok(false)
+		}
+	};
+
+	match res {
+		Ok(false) => exit(1),
+		Err(e) => {
+			eprintln!("ip: {object}: {e}");
 			exit(1);
 		}
+		_ => {}
 	}
 }
