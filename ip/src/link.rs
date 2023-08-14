@@ -1,6 +1,6 @@
 //! A link is a network interface.
 
-use netlink::Netlink;
+use netlink::route::RouteNetlink;
 use std::env::Args;
 use std::io;
 use std::iter::Peekable;
@@ -13,8 +13,14 @@ fn print_help() {
 
 /// Prints network interfaces list with details.
 fn print_list() -> io::Result<()> {
-	// TODO
-	todo!()
+	let sock = RouteNetlink::new()?;
+
+	for _link in sock.list_links()? {
+		// TODO
+		todo!()
+	}
+
+	Ok(())
 }
 
 /// Handles the command in the given iterator.

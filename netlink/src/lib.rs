@@ -62,7 +62,18 @@ impl Netlink {
 		})
 	}
 
+	/// Low-level interface to receive messages from the socket.
+	///
+	/// The function blocks untils a message is received from the socket, then writes it on the
+	/// given buffer.
+	pub unsafe fn recv_from(buf: &mut [u8]) -> io::Result<()> {
+		// TODO
+		todo!()
+	}
+
 	/// Low-level interface to send messages on the socket.
+	///
+	/// The function sends the whole content of the buffer.
 	pub unsafe fn send_to(&self, buf: &[u8]) -> io::Result<()> {
 		let mut i = 0;
 		while i < buf.len() {

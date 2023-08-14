@@ -75,7 +75,6 @@ fn main() {
 		print_help(&bin);
 		exit(1);
 	};
-	println!("jdsljflksd");
 
 	let res = match object.as_str() {
 		o @ _ if "address".starts_with(o) => link::handle_cmd(iter),
