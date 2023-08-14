@@ -2,10 +2,10 @@
 //! may be used to modify the routing tables (both IPv4 and IPv6), IP addresses, link parameters,
 //! neighbor setups, queueing disciplines, traffic classes, and packet classifiers.
 
+use super::nlmsghdr;
 use super::util;
 use super::Netlink;
 use super::NetlinkIter;
-use super::NlMsgHdr;
 use super::NETLINK_ROUTE;
 use std::ffi::*;
 use std::io;
@@ -15,7 +15,7 @@ use std::num::NonZeroUsize;
 
 /// Interface info message header.
 #[repr(C)]
-struct IfInfoMsg {
+struct ifinfomsg {
 	/// TODO doc
 	ifi_family: c_uchar,
 	/// Device type
@@ -52,14 +52,14 @@ impl RouteNetlink {
 		// TODO
 		let seq = 0;
 
-		let hdr = NlMsgHdr {
-			nlmsg_len: (size_of::<NlMsgHdr>() + size_of::<IfInfoMsg>()) as _,
+		let hdr = nlmsghdr {
+			nlmsg_len: (size_of::<nlmsghdr>() + size_of::<ifinfomsg>()) as _,
 			nlmsg_type: libc::RTM_GETLINK,
 			nlmsg_flags: 0,
 			nlmsg_seq: seq,
 			nlmsg_pid: 0,
 		};
-		let if_hdr = IfInfoMsg {
+		let if_hdr = ifinfomsg {
 			ifi_family: libc::AF_UNSPEC as _,
 			ifi_type: 0, // TODO
 			ifi_index: index as _,

@@ -8,13 +8,27 @@ pub mod util;
 use std::ffi::*;
 use std::io;
 use std::marker::PhantomData;
+use std::mem::size_of;
 
 /// Netlink family: route
 const NETLINK_ROUTE: c_int = 0;
 
+/// Socket address for netlink sockets.
+#[repr(C)]
+struct sockaddr_nl {
+	/// `AF_NETLINK`
+	nl_family: libc::sa_family_t,
+	/// Padding (zero)
+	nl_pad: c_ushort,
+	/// Port ID
+	nl_pid: libc::pid_t,
+	/// Multicast groups mask
+	nl_groups: u32,
+}
+
 /// Netlink message header.
 #[repr(C)]
-struct NlMsgHdr {
+struct nlmsghdr {
 	/// Length of the message including header
 	nlmsg_len: u32,
 	/// Type of message content
@@ -49,9 +63,35 @@ impl Netlink {
 	}
 
 	/// Low-level interface to send messages on the socket.
-	pub unsafe fn send_to(&self, _buf: &[u8]) -> io::Result<()> {
-		// TODO
-		todo!()
+	pub unsafe fn send_to(&self, buf: &[u8]) -> io::Result<()> {
+		let mut i = 0;
+		while i < buf.len() {
+			let sockaddr = sockaddr_nl {
+				nl_family: libc::AF_NETLINK as _,
+				nl_pad: 0,
+				nl_pid: 0,
+				nl_groups: 0,
+			};
+
+			let slice = &buf[i..];
+			let res = unsafe {
+				libc::sendto(
+					self.fd,
+					slice.as_ptr() as _,
+					slice.len(),
+					0,
+					&sockaddr as *const _ as _,
+					size_of::<sockaddr_nl>() as _,
+				)
+			};
+			if res < 0 {
+				return Err(io::Error::last_os_error());
+			}
+
+			i += res as usize;
+		}
+
+		Ok(())
 	}
 }
 
