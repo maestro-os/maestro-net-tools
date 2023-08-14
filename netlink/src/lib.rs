@@ -15,6 +15,7 @@ const NETLINK_ROUTE: c_int = 0;
 
 /// Socket address for netlink sockets.
 #[repr(C)]
+#[derive(Default)]
 struct sockaddr_nl {
 	/// `AF_NETLINK`
 	nl_family: libc::sa_family_t,
@@ -66,9 +67,31 @@ impl Netlink {
 	///
 	/// The function blocks untils a message is received from the socket, then writes it on the
 	/// given buffer.
-	pub unsafe fn recv_from(buf: &mut [u8]) -> io::Result<()> {
-		// TODO
-		todo!()
+	///
+	/// On success, the function returns the number of bytes read.
+	pub unsafe fn recv_from(&self, buf: &mut [u8]) -> io::Result<usize> {
+		let mut sockaddr = sockaddr_nl::default();
+
+		loop {
+			let res = unsafe {
+				libc::recvfrom(
+					self.fd,
+					buf.as_mut_ptr() as _,
+					buf.len(),
+					0,
+					&mut sockaddr as *mut _ as *mut _,
+					size_of::<sockaddr_nl>() as _,
+				)
+			};
+			if res < 0 {
+				return Err(io::Error::last_os_error());
+			}
+
+			// ignore messages that do not come from the kernel
+			if sockaddr.nl_pid == 0 {
+				return Ok(res as _);
+			}
+		}
 	}
 
 	/// Low-level interface to send messages on the socket.
