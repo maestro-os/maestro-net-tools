@@ -9,6 +9,8 @@ use std::ffi::*;
 use std::io;
 use std::marker::PhantomData;
 use std::mem::size_of;
+use std::sync::atomic;
+use std::sync::atomic::AtomicU32;
 
 /// Netlink family: route
 const NETLINK_ROUTE: c_int = 0;
@@ -46,6 +48,8 @@ struct nlmsghdr {
 pub struct Netlink {
 	/// The socket's file descriptor.
 	fd: c_int,
+	/// The next sequence number to be used.
+	next_seq: AtomicU32,
 }
 
 impl Netlink {
@@ -60,6 +64,7 @@ impl Netlink {
 
 		Ok(Self {
 			fd,
+			next_seq: AtomicU32::new(0),
 		})
 	}
 
@@ -126,6 +131,11 @@ impl Netlink {
 		}
 
 		Ok(())
+	}
+
+	/// Returns the next sequence number.
+	pub fn next_seq(&self) -> u32 {
+		self.next_seq.fetch_add(1, atomic::Ordering::Relaxed)
 	}
 }
 

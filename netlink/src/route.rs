@@ -49,8 +49,7 @@ impl RouteNetlink {
 
 	fn get_link_impl(&self, index: Option<NonZeroUsize>) -> io::Result<NetlinkIter<'_, Link>> {
 		let index = index.map(NonZeroUsize::get).unwrap_or(0);
-		// TODO
-		let seq = 0;
+		let seq = self.sock.next_seq();
 
 		let hdr = nlmsghdr {
 			nlmsg_len: (size_of::<nlmsghdr>() + size_of::<ifinfomsg>()) as _,
