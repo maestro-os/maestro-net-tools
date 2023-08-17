@@ -75,6 +75,7 @@ impl RouteNetlink {
 		Ok(NetlinkIter {
 			sock: &self.sock,
 			seq,
+			finished: false,
 
 			_phantom: PhantomData,
 		})
