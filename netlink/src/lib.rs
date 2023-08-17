@@ -31,6 +31,7 @@ pub struct sockaddr_nl {
 
 /// Netlink message header.
 #[repr(C)]
+#[derive(Clone)]
 struct nlmsghdr {
 	/// Length of the message including header
 	nlmsg_len: u32,
@@ -162,7 +163,7 @@ impl Netlink {
 	/// Returns the next received message for the given sequence number.
 	///
 	/// If no message is buffered for this sequence, the function blocks until one is received.
-	fn next_msg(&self, seq: u32) -> io::Result<Vec<u8>> {
+	fn next_msg(&self, seq: u32) -> io::Result<(nlmsghdr, Vec<u8>)> {
 		loop {
 			// TODO check buffer
 
@@ -191,7 +192,7 @@ impl Netlink {
 				continue;
 			}
 
-			return Ok(buf);
+			return Ok((hdr.clone(), buf[size_of::<nlmsghdr>()..].to_vec()));
 		}
 	}
 }
@@ -205,7 +206,7 @@ impl Drop for Netlink {
 }
 
 /// An iterator on netlink objects.
-pub struct NetlinkIter<'sock, T> {
+pub struct NetlinkIter<'sock, T: for<'a> TryFrom<&'a [u8]>> {
 	/// The netlink socket.
 	sock: &'sock Netlink,
 	/// The sequence number on which the iterator works.
@@ -216,7 +217,7 @@ pub struct NetlinkIter<'sock, T> {
 	_phantom: PhantomData<T>,
 }
 
-impl<'sock, T> Iterator for NetlinkIter<'sock, T> {
+impl<'sock, T: for<'a> TryFrom<&'a [u8]>> Iterator for NetlinkIter<'sock, T> {
 	type Item = io::Result<T>;
 
 	fn next(&mut self) -> Option<Self::Item> {
@@ -225,22 +226,20 @@ impl<'sock, T> Iterator for NetlinkIter<'sock, T> {
 		}
 
 		// get next message
-		let msg = match self.sock.next_msg(self.seq) {
+		let (hdr, msg) = match self.sock.next_msg(self.seq) {
 			Ok(m) => m,
 			Err(e) => return Some(Err(e)),
 		};
-		let hdr: &nlmsghdr = unsafe {
-			util::reinterpret(&msg)
-		}.unwrap();
 
 		// if the message is singlepart, mark the iterator as finished
 		if hdr.nlmsg_flags & (libc::NLM_F_MULTI as u16) == 0
-			&& hdr.nlmsg_type == libc::NLMSG_DONE as u16
+			|| hdr.nlmsg_type == libc::NLMSG_DONE as u16
 		{
 			self.finished = true;
 		}
 
-		// TODO
-		todo!()
+		// TODO handle error
+		let elem = T::try_from(&msg).ok().unwrap();
+		Some(Ok(elem))
 	}
 }

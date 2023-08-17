@@ -33,6 +33,15 @@ pub struct Link {
 	// TODO
 }
 
+impl TryFrom<&[u8]> for Link {
+	type Error = ();
+
+	fn try_from(_val: &[u8]) -> Result<Self, Self::Error> {
+		// TODO
+		todo!()
+	}
+}
+
 /// A netlink socket set to the `NETLINK_ROUTE` family.
 pub struct RouteNetlink {
 	/// The netlink socket.
