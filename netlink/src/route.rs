@@ -13,6 +13,21 @@ use std::marker::PhantomData;
 use std::mem::size_of;
 use std::num::NonZeroUsize;
 
+/// Routing attribute: interface L2 address
+const IFLA_ADDRESS: c_ushort = 1;
+/// Routing attribute: L2 broadcast address
+const IFLA_BROADCAST: c_ushort = 2;
+/// Routing attribute: Device name
+const IFLA_IFNAME: c_ushort = 3;
+/// Routing attribute: MTU of the device
+const IFLA_MTU: c_ushort = 4;
+/// Routing attribute: Link type
+const IFLA_LINK: c_ushort = 5;
+/// Routing attribute: Queueing discipline
+const IFLA_QDISC: c_ushort = 6;
+/// Routing attribute: Queueing discipline
+const IFLA_STATS: c_ushort = 7;
+
 /// Interface info message header.
 #[repr(C)]
 struct ifinfomsg {
@@ -28,17 +43,68 @@ struct ifinfomsg {
 	ifi_change: c_uint,
 }
 
-/// TODO doc
+/// Route attribute
+#[repr(C)]
+struct rtattr {
+	/// Length of option
+	rta_len: c_ushort,
+	/// Type of option
+	rta_type: c_ushort,
+}
+
+/// A network interface
 pub struct Link {
+	/// The device's index
+	pub index: usize,
+
+	/// Interface L2 address
+	pub address: Option<[u8; 6]>,
+	/// Broadcast L2 address
+	pub broadcast: Option<[u8; 6]>,
+	/// Interface name
+	pub name: Option<CString>,
 	// TODO
 }
 
 impl TryFrom<&[u8]> for Link {
+	// TODO: have a correct error type
 	type Error = ();
 
-	fn try_from(_val: &[u8]) -> Result<Self, Self::Error> {
-		// TODO
-		todo!()
+	fn try_from(val: &[u8]) -> Result<Self, Self::Error> {
+		let hdr: &ifinfomsg = unsafe { util::reinterpret(val) }.ok_or(())?;
+		let mut link = Link {
+			index: hdr.ifi_index as _,
+
+			address: None,
+			broadcast: None,
+			name: None,
+			// TODO
+		};
+
+		// iterate on attributes
+		let mut i = size_of::<ifinfomsg>();
+		while i < val.len() {
+			let hdr: &rtattr = unsafe { util::reinterpret(val) }.ok_or(())?;
+
+			let data = &val[(i + size_of::<rtattr>())..];
+			match hdr.rta_type {
+				IFLA_ADDRESS => link.address = Some(data.try_into().map_err(|_| ())?),
+				IFLA_BROADCAST => link.broadcast = Some(data.try_into().map_err(|_| ())?),
+				IFLA_IFNAME => link.name = Some(CString::new(data).map_err(|_| ())?),
+				IFLA_MTU => {}   // TODO
+				IFLA_LINK => {}  // TODO
+				IFLA_QDISC => {} // TODO
+				IFLA_STATS => {
+					// TODO rtnl_link_stats
+				}
+
+				_ => {}
+			}
+
+			i += hdr.rta_len as usize;
+		}
+
+		Ok(link)
 	}
 }
 

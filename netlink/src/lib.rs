@@ -168,13 +168,9 @@ impl Netlink {
 			// TODO check buffer
 
 			// read message from buffer
-			let (len, _) = unsafe {
-				self.peek()
-			}?;
+			let (len, _) = unsafe { self.peek() }?;
 			let mut buf = vec![0; len];
-			let (len, _) = unsafe {
-				self.recv_from(&mut buf)
-			}?;
+			let (len, _) = unsafe { self.recv_from(&mut buf) }?;
 			// if the message is not large enough to fit the header, discard it and wait for next
 			// message
 			if len < size_of::<nlmsghdr>() {
@@ -182,9 +178,7 @@ impl Netlink {
 			}
 
 			// get buffer's header
-			let hdr: &nlmsghdr = unsafe {
-				util::reinterpret(&buf)
-			}.unwrap();
+			let hdr: &nlmsghdr = unsafe { util::reinterpret(&buf) }.unwrap();
 			// if the message is not part of the requested sequence, buffer it and wait for next
 			// message
 			if hdr.nlmsg_seq != seq {
