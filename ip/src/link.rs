@@ -14,10 +14,14 @@ fn print_help() {
 /// Prints network interfaces list with details.
 fn print_list() -> io::Result<()> {
 	let sock = RouteNetlink::new()?;
-
-	for _link in sock.list_links()? {
+	for link in sock.list_links()? {
+		let link = link?;
+		println!(
+			"{}: TODO: TODO",
+			link.index,
+			//link.name.unwrap_or_default().display()
+		);
 		// TODO
-		todo!()
 	}
 
 	Ok(())

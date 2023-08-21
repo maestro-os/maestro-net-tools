@@ -122,14 +122,23 @@ impl RouteNetlink {
 		})
 	}
 
-	fn get_link_impl(&self, index: Option<NonZeroUsize>) -> io::Result<NetlinkIter<'_, Link>> {
+	fn get_link_impl(
+		&self,
+		index: Option<NonZeroUsize>,
+		single: bool,
+	) -> io::Result<NetlinkIter<'_, Link>> {
 		let index = index.map(NonZeroUsize::get).unwrap_or(0);
 		let seq = self.sock.next_seq();
+		let flags = if single {
+			libc::NLM_F_REQUEST
+		} else {
+			libc::NLM_F_REQUEST | libc::NLM_F_DUMP
+		};
 
 		let hdr = nlmsghdr {
 			nlmsg_len: (size_of::<nlmsghdr>() + size_of::<ifinfomsg>()) as _,
 			nlmsg_type: libc::RTM_GETLINK,
-			nlmsg_flags: 0,
+			nlmsg_flags: flags as _,
 			nlmsg_seq: seq,
 			nlmsg_pid: 0,
 		};
@@ -158,13 +167,13 @@ impl RouteNetlink {
 
 	/// Lists network interfaces.
 	pub fn list_links(&self) -> io::Result<NetlinkIter<'_, Link>> {
-		self.get_link_impl(None)
+		self.get_link_impl(None, true)
 	}
 
 	/// Returns the network interface with the given index.
 	///
 	/// If the interface doesn't exist, the function returns `None`.
 	pub fn get_link(&self, index: NonZeroUsize) -> io::Result<Option<Link>> {
-		self.get_link_impl(Some(index))?.next().transpose()
+		self.get_link_impl(Some(index), false)?.next().transpose()
 	}
 }

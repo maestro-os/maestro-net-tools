@@ -74,14 +74,19 @@ impl Netlink {
 		buf: &mut [u8],
 		peek: bool,
 	) -> io::Result<(usize, sockaddr_nl)> {
-		let mut sockaddr = sockaddr_nl::default();
+		let mut sockaddr = sockaddr_nl {
+			nl_family: libc::AF_NETLINK as _,
+			nl_pad: 0,
+			nl_pid: 0,
+			nl_groups: 0,
+		};
+		let flags = if peek {
+			libc::MSG_PEEK | libc::MSG_TRUNC
+		} else {
+			0
+		};
 
 		loop {
-			let flags = if peek {
-				libc::MSG_PEEK | libc::MSG_TRUNC
-			} else {
-				0
-			};
 			let res = unsafe {
 				libc::recvfrom(
 					self.fd,
